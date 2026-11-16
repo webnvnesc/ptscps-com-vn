@@ -1,0 +1,98 @@
+name: PTSCPS FCP CSS coverage and font audit (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-fcp-coverage.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Analyze first paint, CSS usage, font loading and network
+        shell: bash
+        run: |
+          mkdir -p fcp-coverage
+          cat > fcp-coverage.cjs <<'NODE'
+          const {chromium}=require('playwright');
+          const fs=require('fs');
+          const target='https://ptscps.com.vn/';
+          const browserPromise=chromium.launch({headless:true});
+          async function audit(name,slow){
+            const browser=await browserPromise;
+            const context=await browser.newContext({viewport:{width:412,height:823},deviceScaleFactor:1.75,isMobile:true,hasTouch:true,locale:'vi-VN'});
+            const page=await context.newPage();
+            const failures=[],fontResponses=[];
+            page.on('pageerror',e=>failures.push(e.message));
+            page.on('response',response=>{
+              const u=response.url();
+              if(/\\.(?:woff2?|ttf|otf)(?:[?#]|$)|fonts.googleapis.com/i.test(u)){
+                fontResponses.push({url:u.replace(/\\?.*/,'').slice(-180),status:response.status(),type:response.request().resourceType(),cache:response.headers()['cache-control']});
+              }
+            });
+            await page.addInitScript(()=>{
+              window.__shift=[];
+              window.__paints=[];
+              new PerformanceObserver(l=>{for(const e of l.getEntries())window.__shift.push({t:Math.round(e.startTime),v:e.value,input:e.hadRecentInput})}).observe({type:'layout-shift',buffered:true});
+              new PerformanceObserver(l=>{for(const e of l.getEntries())window.__paints.push({t:Math.round(e.startTime),name:e.name})}).observe({type:'paint',buffered:true});
+            });
+            await page.coverage.startCSSCoverage({resetOnNavigation:false});
+            if(slow){
+              const cdp=await context.newCDPSession(page);
+              await cdp.send('Network.enable');
+              await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:150,downloadThroughput:200*1024,uploadThroughput:90*1024});
+              await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+            }
+            const response=await page.goto(target,{waitUntil:'domcontentloaded',timeout:75000});
+            await page.waitForTimeout(5600);
+            const covered=await page.coverage.stopCSSCoverage();
+            const result=await page.evaluate(()=>{
+              const nav=performance.getEntriesByType('navigation')[0];
+              const resources=performance.getEntriesByType('resource').filter(x=>/fonts|\\.woff2?|\\.css|\\.js/i.test(x.name));
+              const k=window.__paints.find(x=>x.name==='first-contentful-paint');
+              const cssLinks=[...document.querySelectorAll('link[rel=stylesheet]')].map(x=>({url:x.href.replace(location.origin,''),media:x.media,disabled:x.disabled}));
+              const fontRules=[...document.styleSheets].filter(x=>/googleapis|jannah-child/.test(x.href||'')).map(x=>({href:x.href,loaded:!!x.cssRules?.length}));
+              const cs=q=>{const e=document.querySelector(q);if(!e)return null;const c=getComputedStyle(e);return {font:c.fontFamily,fontWeight:c.fontWeight,fontSize:c.fontSize,display:c.display,opacity:c.opacity}};
+              return {
+                fcp:k?.t||0,paints:window.__paints,ttfb:Math.round(nav.responseStart),
+                cls:window.__shift.filter(x=>!x.input).reduce((s,x)=>s+x.v,0),
+                fonts:{status:document.fonts.status,faces:[...document.fonts].filter(x=>x.status==='loaded').slice(0,80).map(x=>({family:x.family,weight:x.weight,style:x.style,status:x.status})),count:document.fonts.size},
+                styles:cssLinks,stylesCount:cssLinks.length,
+                firstViewStyles:{body:cs('body'),header:cs('#main-nav'),menu:cs('#main-nav a'),intro:cs('.elementor-element-920fc5e')},
+                resources:resources.map(x=>({url:x.name.replace(location.origin,'').slice(0,260),start:Math.round(x.startTime),end:Math.round(x.responseEnd),duration:Math.round(x.duration),decoded:x.decodedBodySize,transfer:x.transferSize,initiator:x.initiatorType})).sort((a,b)=>a.end-b.end).slice(0,130)
+              };
+            });
+            result.cssCoverage=covered.map(x=>({url:x.url.replace('https://ptscps.com.vn',''),size:x.text.length,used:x.ranges.reduce((a,r)=>a+r.end-r.start,0)})).sort((a,b)=>b.size-a.size);
+            result.response={status:response.status(),headers:Object.fromEntries(Object.entries(response.headers()).filter(([k])=>/cache|age|server|vary|content-type/i.test(k)))};
+            result.fontResponses=fontResponses;
+            result.pageErrors=failures.slice(0,20);
+            fs.writeFileSync('fcp-coverage/'+name+'.json',JSON.stringify(result,null,2));
+            console.log('SUMMARY',name,JSON.stringify({fcp:result.fcp,ttfb:result.ttfb,cls:result.cls,styleCount:result.stylesCount,fontFaces:result.fonts.count,loadedFontFaces:result.fonts.faces,cssCount:covered.length,firstViewStyles:result.firstViewStyles,response:result.response,errorCount:failures.length}));
+            console.log('FONT_NETWORK',name,JSON.stringify(fontResponses));
+            console.log('CSS_COVERAGE',name,JSON.stringify(result.cssCoverage.slice(0,50)));
+            console.log('RESOURCE',name,JSON.stringify(result.resources.filter(x=>/\\.css|font|\\.woff/i.test(x.url)).slice(0,60)));
+            await context.close();
+          }
+          (async()=>{try{await audit('mobile_throttled',true);await audit('mobile_unthrottled',false);}finally{(await browserPromise).close()}})().catch(e=>{console.error('FAILED',e.stack||e);process.exitCode=1});
+          NODE
+          node --check fcp-coverage.cjs
+          node fcp-coverage.cjs > fcp-coverage/results.log 2>&1 || { tail -n 30 fcp-coverage/results.log; exit 1; }
+          grep -E '^(SUMMARY|FONT_NETWORK|CSS_COVERAGE|RESOURCE|FAILED)' fcp-coverage/results.log | cut -c1-15500
+      - name: Upload full diagnostic JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-fcp-css-and-font-audit
+          path: fcp-coverage/
+          retention-days: 10
+          if-no-files-found: warn
