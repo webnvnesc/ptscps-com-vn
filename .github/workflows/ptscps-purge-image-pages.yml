@@ -1,0 +1,45 @@
+name: PTSCPS refresh only homepage and news category image caches
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-purge-image-pages.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  invalidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Invalidate only two exact public page caches
+        run: |
+          python3 -m py_compile scripts/ptscps-purge-image-pages.py
+          python3 -u scripts/ptscps-purge-image-pages.py
+      - name: Verify production canonical home and category markup
+        run: |
+          python3 - <<'PY'
+          import urllib.request,re
+          root='https://ptscps.com.vn'
+          for path in ['/','/c/hoat-dong-cua-cong-ty']:
+              req=urllib.request.Request(root+path,headers={'User-Agent':'Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 Chrome/154 Mobile Safari/537.36','Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req,timeout=45) as resp:
+                  html=resp.read().decode('utf-8','replace')
+                  status=resp.status
+              tags=re.findall(r'<img\b[^>]*>',html,re.I)
+              if path=='/':
+                  logo=[x for x in tags if 'swiper-slide-image' in x]
+                  lazy=sum('loading="lazy"' in x for x in logo)
+                  smaller=sum('768x289' in x or '1024x354' in x for x in logo)
+                  print('HOME',status,len(logo),lazy,smaller,flush=True)
+                  assert status==200 and len(logo)>=15 and len(logo)==lazy and smaller>=2
+              else:
+                  news=[x for x in tags if 'jannah-image-large' in x and 'wp-post-image' in x]
+                  lazy=sum('loading="lazy"' in x for x in news)
+                  print('NEWS',status,len(news),lazy,flush=True)
+                  assert status==200 and len(news)>=10 and lazy>=3
+          PY
