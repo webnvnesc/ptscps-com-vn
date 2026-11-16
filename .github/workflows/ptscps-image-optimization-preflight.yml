@@ -1,0 +1,29 @@
+name: PTSCPS image optimization preflight (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-image-optimization-preflight.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect rendered HTML and image sizes
+        run: |
+          node scripts/ptscps-image-optimization-preflight.cjs > preflight.log 2>&1 || { tail -n 25 preflight.log; exit 1; }
+          grep -E '^(DOCUMENT|SWIPER|POST|MEDIA|FATAL)' preflight.log | cut -c1-4000
+      - name: Archive source inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-image-optimization-preflight
+          path: preflight.log
+          retention-days: 5
+          if-no-files-found: warn
