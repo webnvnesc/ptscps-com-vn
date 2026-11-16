@@ -41,15 +41,15 @@ jobs:
             let count=0;
             const patterns=Array.isArray(scenario.match)?scenario.match:[scenario.match];
             if(['style','styles'].includes(scenario.type)){
-              html=html.replace(/<link\\b[^>]*>/gi,tag=>{
-                if(!/rel\\s*=\\s*["']?stylesheet/i.test(tag))return tag;
+              html=html.replace(/<link\b[^>]*>/gi,tag=>{
+                if(!/rel\s*=\s*["']?stylesheet/i.test(tag))return tag;
                 if(!patterns.some(p=>tag.includes(p)))return tag;
                 count++;
-                return tag.replace(/\\smedia\\s*=\\s*(["']).*?\\1/gi,'')
+                return tag.replace(/\smedia\s*=\s*(["']).*?\1/gi,'')
                   .replace(/>$/," media=\"print\" onload=\"this.media='all'\" />");
               });
             }else if(scenario.type==='script'){
-              html=html.replace(/<script\\b[^>]*>/gi,tag=>{
+              html=html.replace(/<script\b[^>]*>/gi,tag=>{
                 if(!patterns.some(p=>tag.includes(p)))return tag;
                 count++;
                 return tag.replace(/>$/,' defer>');
@@ -93,11 +93,11 @@ jobs:
                   const nav=performance.getEntriesByType('navigation')[0]||{};
                   const paint=performance.getEntriesByType('paint')||[];
                   const res=(performance.getEntriesByType('resource')||[]).map(r=>({
-                    url:r.name.replace(location.origin,'').replace(/\\?.*/,''),
+                    url:r.name.replace(location.origin,'').replace(/\?.*/,''),
                     initiator:r.initiatorType,start:Math.round(r.startTime),
                     end:Math.round(r.responseEnd),dur:Math.round(r.duration),
                     size:r.transferSize,decoded:r.decodedBodySize
-                  })).filter(r=>/\\.(?:css|js|woff|woff2|ttf)(?:$|\\?)/i.test(r.url));
+                  })).filter(r=>/\.(?:css|js|woff|woff2|ttf)(?:$|\?)/i.test(r.url));
                   const geom=(sel)=>{const e=document.querySelector(sel);if(!e)return null;const r=e.getBoundingClientRect();const c=getComputedStyle(e);return {x:Math.round(r.x),y:Math.round(r.y),h:Math.round(r.height),w:Math.round(r.width),display:c.display,opacity:c.opacity,font:c.fontFamily}};
                   const head=[...document.head.querySelectorAll('link[rel=stylesheet],script[src]')].map((x,i)=>({tag:x.tagName,src:(x.href||x.src||'').replace(location.origin,'').slice(0,190),media:x.media,async:x.async,defer:x.defer})).filter(x=>x.src);
                   return {
