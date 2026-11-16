@@ -1,0 +1,28 @@
+name: PTSCPS inspect actual Jannah logo markup source read only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-jannah-logo-php-readonly.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find exact theme logo renderer and hooks
+        run: |
+          python3 -u scripts/ptscps-jannah-logo-php-readonly.py > logo-php-source.log 2>&1
+          grep '^JANN_LOGO_' logo-php-source.log | cut -c1-10000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-logo-php-source-readonly
+          path: logo-php-source.log
+          retention-days: 7
