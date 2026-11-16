@@ -1,0 +1,16 @@
+name: PTSCPS inspect picture source logo override read only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-picture-source-readonly.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read original picture and source tags without modifying production
+        run: python3 -u scripts/ptscps-picture-source-readonly.py
