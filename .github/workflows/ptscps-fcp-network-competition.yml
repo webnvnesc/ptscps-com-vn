@@ -1,0 +1,44 @@
+name: PTSCPS FCP network competition and external script A/B (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-fcp-network-competition.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [412, 1440]
+    env:
+      TEST_WIDTH: ${{ matrix.width }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect first paint path and browser-only third-party script suppression
+        shell: bash
+        run: |
+          node --check scripts/ptscps-fcp-network-competition.cjs
+          mkdir -p network-probe-${{ matrix.width }}
+          node scripts/ptscps-fcp-network-competition.cjs > network-probe.log 2>&1 || { tail -n 45 network-probe.log; exit 1; }
+          grep -E '^(CASE|PAIRED|FATAL)' network-probe.log | cut -c1-4000
+      - name: Archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-fcp-network-competition-${{ matrix.width }}
+          path: |
+            network-probe-${{ matrix.width }}/
+            network-probe.log
+          retention-days: 10
+          if-no-files-found: warn
