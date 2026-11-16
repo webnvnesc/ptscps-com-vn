@@ -41,3 +41,5 @@ jobs:
             ptscps-lighthouse-*/
           retention-days: 30
           if-no-files-found: ignore
+
+# Independent post-production Lighthouse verification following all-header Accessibility SEO fixes.
