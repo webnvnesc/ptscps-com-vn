@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: PTSCPS Conditional SR7 Frontend JS
- * Description: Canopy for removing the two SR7 runtime libraries from confirmed non-slider pages only; does not affect Slider Revolution/editor data.
- * Version: 0.1.0-canary
+ * Description: Load Slider Revolution JS only on pages which use it, preserving WordPress, Elementor and edit/preview flows.
+ * Version: 1.0.0
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -59,9 +59,8 @@ if ( ! function_exists( 'ptscps_sr7_js_gate_safe' ) ) {
 }
 if ( ! function_exists( 'ptscps_sr7_js_gate_active' ) ) {
     function ptscps_sr7_js_gate_active() {
-        // Explicit opt-in on this canary revision; normal visitors unaffected.
-        return isset( $_GET['ptscps_sr7_js_probe'] )
-            && '1' === (string) $_GET['ptscps_sr7_js_probe'];
+        // Activated after isolated mobile and desktop browser QA.
+        return true;
     }
 }
 add_action( 'wp_enqueue_scripts', static function () {
