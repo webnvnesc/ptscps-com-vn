@@ -121,7 +121,7 @@ async function runOne(browser,cycle) {
  }catch(e){out.error=String(e.stack||e).slice(0,950);process.exitCode=1}
  console.log('RENDER_CASE '+JSON.stringify({
   cycle,width,http:out.http,ttfb:out.late?.ttfb,fcp:out.late?.fcp,lcp:out.late?.lcp?.at(-1),
-  gap:out.fcpAfterTtfb,mainCSS:out.mainCSS,fonts:out.fontFiles,face:out.late?.fonts,
+  gap:out.fcpAfterTtfb,mainCSS:out.mainCSS,fonts:out.fontFiles,face:out.late?.fonts?.filter(f=>f.status==='loaded').slice(0,16),
   events:out.late?.fontEvents,platformFonts:out.platformFonts,platformError:out.platformError,
   intro:out.late?.intro,cls:out.late?.cls,errors:out.errors,error:out.error
  }));
