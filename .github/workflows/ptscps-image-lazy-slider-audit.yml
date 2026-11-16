@@ -1,0 +1,44 @@
+name: PTSCPS offscreen image lazy and SR7 slider dimension audit (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-image-lazy-slider-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [412, 1440]
+    env:
+      TEST_WIDTH: ${{ matrix.width }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect image loading, network and slider display versus intrinsic dimensions
+        shell: bash
+        run: |
+          node --check scripts/ptscps-image-lazy-slider-audit.cjs
+          mkdir -p image-audit-${{ matrix.width }}
+          node scripts/ptscps-image-lazy-slider-audit.cjs > image-audit.log 2>&1 || { tail -n 45 image-audit.log; exit 1; }
+          grep -E '^(PAGE|FAILED|FATAL)' image-audit.log | cut -c1-12000
+      - name: Archive detailed audit and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-image-lazy-slider-audit-${{ matrix.width }}
+          path: |
+            image-audit-${{ matrix.width }}/
+            image-audit.log
+          retention-days: 10
+          if-no-files-found: warn
