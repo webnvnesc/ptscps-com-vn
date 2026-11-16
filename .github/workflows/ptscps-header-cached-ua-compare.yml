@@ -1,0 +1,17 @@
+name: PTSCPS compare cached homepage mobile versus desktop markup
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-header-cached-ua-compare.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare URL and cache bypass for desktop/mobile browser identifiers
+        run: |
+          python3 -u scripts/ptscps-header-cached-ua-compare.py
