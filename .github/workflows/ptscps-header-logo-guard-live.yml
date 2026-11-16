@@ -1,0 +1,53 @@
+name: PTSCPS safeguard oversized header logo when Jannah CSS fails
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-header-logo-guard-live.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser QA tools
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Validate source and tools
+        run: |
+          php -l deploy/ptscps-header-logo-safety.php
+          python3 -m py_compile scripts/ptscps-header-logo-guard-deploy.py scripts/ptscps-header-logo-guard-rollback.py
+          node --check scripts/ptscps-header-logo-guard-qa.cjs
+      - name: Install only owned MU guard with hash verification
+        run: |
+          python3 -u scripts/ptscps-header-logo-guard-deploy.py
+      - name: Verify desktop mobile and missing Jannah CSS reproduction
+        run: |
+          node scripts/ptscps-header-logo-guard-qa.cjs | tee logo-guard-qa.log
+      - name: Roll back if production QA fails
+        if: failure()
+        run: |
+          python3 -u scripts/ptscps-header-logo-guard-rollback.py
+      - name: Preserve prior plugin and QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-header-logo-guard-evidence
+          path: |
+            logo-guard-prior.php
+            logo-guard-qa.log
+          retention-days: 30
+          if-no-files-found: ignore
