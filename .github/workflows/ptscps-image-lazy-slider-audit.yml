@@ -2,7 +2,9 @@ name: PTSCPS offscreen image lazy and SR7 slider dimension audit (read only)
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/ptscps-image-lazy-slider-audit.yml"]
+    paths:
+      - ".github/workflows/ptscps-image-lazy-slider-audit.yml"
+      - "scripts/ptscps-image-lazy-slider-audit.cjs"
   workflow_dispatch:
 permissions:
   contents: read
