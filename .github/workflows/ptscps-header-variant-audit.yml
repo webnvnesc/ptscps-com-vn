@@ -14,7 +14,7 @@ jobs:
     env:
       WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
       WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
-      HEADER_CYCLES: 7
+      HEADER_CYCLES: 2
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
