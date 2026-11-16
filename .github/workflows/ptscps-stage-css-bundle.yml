@@ -1,0 +1,22 @@
+name: PTSCPS stage inactive Jannah CSS bundle via FTPS
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-stage-css-bundle.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write only non-enqueued static test asset and verify checksum
+        shell: bash
+        run: |
+          python3 -u scripts/stage-jannah-css-bundle.py
