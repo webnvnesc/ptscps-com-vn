@@ -1,0 +1,35 @@
+name: PTSCPS SR7 slim plugin loader browser smoke QA
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-slim-browser-qa.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Verify slider and Elementor in anonymous mobile and desktop
+        shell: bash
+        run: |
+          node --check scripts/ptscps-sr7-slim-browser-qa.cjs
+          node scripts/ptscps-sr7-slim-browser-qa.cjs > sr7-slim-browser.log 2>&1 || { tail -n 30 sr7-slim-browser.log; exit 1; }
+          grep '^SLIM_BROWSER' sr7-slim-browser.log | cut -c1-8500
+      - name: Store browser QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-slim-browser
+          path: sr7-slim-browser.log
+          retention-days: 10
