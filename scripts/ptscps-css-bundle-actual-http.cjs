@@ -182,7 +182,7 @@ async function main(){
     }
     await setup.close();
     // A missing advanced bundle is an explicit safe stop; never bundle across a print-media link.
-    if(!bundles.bundle4)throw Error('Cannot safely bundle four primary Jannah styles');
+    if(!bundles.bundle6)throw Error('Cannot safely bundle six adjacent Jannah styles');
     const names=['control',...Object.keys(bundles)];
     const results=[];
     for(let c=0;c<CYCLES;c++){
