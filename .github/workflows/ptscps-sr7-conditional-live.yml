@@ -1,0 +1,61 @@
+name: PTSCPS enable demand-loaded SR7 JS with rollback
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-conditional-live.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 19
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser QA prerequisites
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Validate PHP and deployment scripts
+        shell: bash
+        run: |
+          php -l deploy/ptscps-sr7-conditional-js.php
+          python3 -m py_compile scripts/ptscps-sr7-conditional-live-deploy.py scripts/ptscps-sr7-conditional-rollback.py
+          node --check scripts/ptscps-sr7-conditional-live-qa.cjs
+      - name: Promote verified SR7 conditional loading plugin
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-sr7-conditional-live-deploy.py > sr7-live-install.log 2>&1 || { tail -n 30 sr7-live-install.log; exit 1; }
+          cat sr7-live-install.log
+      - name: Verify production homepage and three non-slider pages
+        shell: bash
+        run: |
+          node scripts/ptscps-sr7-conditional-live-qa.cjs > sr7-live-qa.log 2>&1 || { tail -n 35 sr7-live-qa.log; exit 1; }
+          grep -E '^SR7_LIVE_(QA|SUMMARY)' sr7-live-qa.log | cut -c1-10000
+      - name: Restore opt-in canary automatically on production failure
+        if: failure()
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-sr7-conditional-rollback.py || true
+      - name: Archive production evidence and exact previous plugin
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-conditional-sr7-js-live
+          path: |
+            sr7-live-install.log
+            sr7-live-qa.log
+            sr7-js-before-live.php
+          retention-days: 30
+          if-no-files-found: ignore
