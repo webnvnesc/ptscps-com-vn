@@ -1,0 +1,46 @@
+name: PTSCPS investigate intermittent CSS JS latency (read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-intermittent-browser.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  trace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [412, 1440]
+    env:
+      TEST_WIDTH: ${{ matrix.width }}
+      TEST_CYCLES: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Capture repeated cold browser network traces
+        shell: bash
+        run: |
+          node --check scripts/ptscps-intermittent-browser.cjs
+          node scripts/ptscps-intermittent-browser.cjs > intermittent-browser.log 2>&1 || { tail -n 32 intermittent-browser.log; exit 1; }
+          grep '^STALL_SUMMARY' intermittent-browser.log | cut -c1-16000
+      - name: Archive raw waterfall and timing
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-intermittent-browser-${{ matrix.width }}
+          path: |
+            intermittent-browser.log
+            ptscps-intermittent-browser-${{ matrix.width }}/
+          retention-days: 12
+          if-no-files-found: warn
