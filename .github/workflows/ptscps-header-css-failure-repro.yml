@@ -1,0 +1,34 @@
+name: PTSCPS reproduce header stylesheet failure in browser only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-header-css-failure-repro.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare normal with main or all Jannah CSS aborted
+        shell: bash
+        run: |
+          node --check scripts/ptscps-header-css-failure-repro.cjs
+          node scripts/ptscps-header-css-failure-repro.cjs > header-css-repro.log 2>&1 || { tail -n 35 header-css-repro.log; exit 1; }
+          grep '^CSS_REPRO' header-css-repro.log | cut -c1-6500
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-header-css-failure-repro
+          path: header-css-repro.log
+          retention-days: 10
