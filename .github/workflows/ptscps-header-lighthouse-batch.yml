@@ -1,0 +1,43 @@
+name: PTSCPS Lighthouse score baseline every header page desktop mobile
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-header-lighthouse-batch.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lighthouse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [desktop, mobile]
+        shard: [0, 1, 2, 3]
+    env:
+      LH_DEVICE: ${{ matrix.device }}
+      LH_SHARD: ${{ matrix.shard }}
+      LH_SHARDS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Lighthouse and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund lighthouse@13.5.0 playwright
+          npx playwright install --with-deps chromium
+      - name: Run exact public Lighthouse Accessibility SEO audits
+        run: |
+          node scripts/ptscps-header-lighthouse-batch.cjs > lighthouse-batch.log 2>&1 || { tail -n 30 lighthouse-batch.log; exit 1; }
+          grep '^LH_' lighthouse-batch.log | cut -c1-8000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-header-lh-${{ matrix.device }}-${{ matrix.shard }}
+          path: |
+            lighthouse-batch.log
+            ptscps-lighthouse-*/
+          retention-days: 30
+          if-no-files-found: ignore
