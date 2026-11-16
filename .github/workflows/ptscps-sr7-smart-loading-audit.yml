@@ -1,0 +1,40 @@
+name: PTSCPS read-only SR7 smart loading setting audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-sr7-smart-loading-audit.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-setting:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Read SR7 global optimization config and frontend loader
+        shell: bash
+        run: |
+          node --check scripts/ptscps-sr7-smart-loading-audit.cjs
+          node scripts/ptscps-sr7-smart-loading-audit.cjs > sr7-loading-audit.log 2>&1 || { grep -E '^SR7_' sr7-loading-audit.log | tail -n 15; exit 1; }
+          grep -E '^SR7_' sr7-loading-audit.log | cut -c1-18000
+      - name: Archive audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-smart-loading-setting
+          path: sr7-loading-audit.log
+          retention-days: 7
+          if-no-files-found: warn
