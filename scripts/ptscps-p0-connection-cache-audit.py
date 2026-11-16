@@ -30,7 +30,7 @@ def curl_piece(name, user_agent, mode, cycle):
         "--connect-timeout", "15", "--output", "/dev/null",
         "--header", "Accept: text/html", "--user-agent", user_agent,
         "--write-out", "PTSCPS|"+name+"|"+mode+"|"+str(cycle)+"|"+
-        "|".join("%{"+f+"}" for f in FIELDS)+"\\n",
+        "|".join("%{"+f+"}" for f in FIELDS)+"\n",
         PAGES[name],
     ]
 
