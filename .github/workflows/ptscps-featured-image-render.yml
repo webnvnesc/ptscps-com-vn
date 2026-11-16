@@ -1,0 +1,36 @@
+name: PTSCPS verify featured image actual render and network (read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-featured-image-render.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Test image rendering and fetch in anonymous mobile/desktop
+        shell: bash
+        run: |
+          node --check scripts/ptscps-featured-image-render-check.cjs
+          node scripts/ptscps-featured-image-render-check.cjs > featured-image-check.log 2>&1 || { tail -n 40 featured-image-check.log; exit 1; }
+          grep '^FEATURED_HOME' featured-image-check.log | cut -c1-19000
+      - name: Archive diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-featured-image-render
+          path: featured-image-check.log
+          retention-days: 10
+          if-no-files-found: warn
