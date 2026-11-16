@@ -1,0 +1,100 @@
+name: PTSCPS source architecture inventory (read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ptscps-source-inventory.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      FTP_DIRECTORY: /domains/ptscps.com.vn/public_html
+    steps:
+      - name: Inspect WordPress source without downloading uploads
+        shell: bash
+        run: |
+          python3 -u - <<'PY'
+          import ftplib, os, re, io, json, posixpath, collections, sys
+          from urllib.parse import urlsplit
+          server=os.getenv('FTP_SERVER','')
+          p=urlsplit(server if '://' in server else '//'+server)
+          root=os.getenv('FTP_DIRECTORY','').rstrip('/')
+          ftp=ftplib.FTP_TLS()
+          ftp.connect(p.hostname,p.port or 21,timeout=18)
+          ftp.auth(); ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD']);ftp.prot_p();ftp.set_pasv(True)
+          ftp.cwd(root)
+          def listing(path):
+              try:
+                  out=[]
+                  for name,meta in ftp.mlsd(path,facts=['type','size']):
+                      if name not in ('.','..'):
+                          out.append((name,meta.get('type','unknown'),int(meta.get('size','0') or 0)))
+                  return sorted(out)
+              except (ftplib.error_perm,OSError):
+                  ftp.cwd(path)
+                  return sorted([(posixpath.basename(n.rstrip('/')),'unknown',0) for n in ftp.nlst()])
+          def file(path,limit=130000):
+              data=bytearray()
+              def collect(chunk):
+                  if len(data)+len(chunk)>limit: raise ValueError('oversized')
+                  data.extend(chunk)
+              try:
+                  ftp.retrbinary('RETR '+root+'/'+path,collect)
+                  return data.decode('utf-8','replace')
+              except (ftplib.all_errors,ValueError):
+                  return ''
+          def tree(path,depth=0,maxdepth=2,cap=180):
+              try: items=listing(root+('/'+path if path else ''))
+              except Exception as e:
+                  print('LIST_UNAVAILABLE',path,type(e).__name__,flush=True);return
+              hidden={'wp-config.php','.env','.htaccess','error_log','debug.log','.user.ini','web.config','php.ini'}
+              result=[]
+              for n,t,s in items[:cap]:
+                  if n.startswith('.ptscps-') or n in hidden:continue
+                  result.append({'name':n,'type':t,'size':s})
+              print('DIR',path or '/',json.dumps(result,ensure_ascii=False),flush=True)
+          def meta_main(path):
+              content=file(path,200000)
+              if not content:return
+              fields={}
+              for key in ('Plugin Name','Description','Version','Author','Text Domain','Theme Name','Template'):
+                  m=re.search(r'^\\s*(?:/\\*+\\s*)?'+re.escape(key)+r':\\s*(.+)$',content[:12000],re.M|re.I)
+                  if m:fields[key]=m.group(1).strip(' */')[:140]
+              hooks=collections.Counter(re.findall(r'\\b(?:add_action|add_filter)\\s*\\(\\s*[\'"]([^\'"]+)',content))
+              funcs=re.findall(r'\\bfunction\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(',content)
+              classes=re.findall(r'\\bclass\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\b',content)
+              print('SOURCE',json.dumps({'path':path,'bytes':len(content.encode()),'headers':fields,'hooks':hooks.most_common(25),'functions':funcs[:35],'classes':classes[:25]},ensure_ascii=False),flush=True)
+          print('START inventory (no uploads, no config/secrets)',flush=True)
+          for path in ('','wp-content','wp-content/themes','wp-content/plugins','wp-content/mu-plugins','wp-content/languages'):
+              tree(path)
+          for base in ('wp-content/themes','wp-content/plugins','wp-content/mu-plugins'):
+              items=listing(root+'/'+base) if base!='wp-content/mu-plugins' else None
+              if not items:
+                  try:items=listing(root+'/'+base)
+                  except Exception:items=[]
+              for name,typ,_ in items[:90]:
+                  if name.startswith('.') or name in ('index.php','readme.txt'):continue
+                  if typ=='dir' or (typ=='unknown' and '.' not in name):
+                      sub=base+'/'+name
+                      tree(sub,cap=70)
+                      if base.endswith('themes'):
+                          for f in ('style.css','functions.php','theme.json','header.php','footer.php','front-page.php','page.php','single.php','index.php'):
+                              meta_main(sub+'/'+f)
+                      elif base.endswith('plugins'):
+                          for f in (name+'.php','plugin.php','index.php'):
+                              meta_main(sub+'/'+f)
+                  elif name.lower().endswith('.php') and base.endswith('mu-plugins'):
+                      meta_main(base+'/'+name)
+          for rootfile in ('index.php','wp-load.php','wp-settings.php'):
+              meta_main(rootfile)
+          print('DONE inventory read only',flush=True)
+          try:ftp.quit()
+          except Exception:ftp.close()
+          PY
