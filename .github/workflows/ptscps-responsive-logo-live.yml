@@ -1,0 +1,69 @@
+name: PTSCPS deploy responsive Jannah logo with srcset on production
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-responsive-logo-live.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Pillow and Chromium
+        run: |
+          python3 -m pip install --user pillow
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Validate candidate PHP and deployment scripts
+        run: |
+          php -l deploy/ptscps-responsive-logo.php
+          python3 -m py_compile scripts/ptscps-responsive-logo-images.py scripts/ptscps-responsive-logo-deploy.py scripts/ptscps-responsive-logo-rollback.py
+          node --check scripts/ptscps-responsive-logo-qa.cjs
+      - name: Create responsive JPEG candidates with atomic checksum verification
+        run: |
+          python3 -u scripts/ptscps-responsive-logo-images.py
+      - name: Install responsive logo MU-plugin through native Jannah hooks
+        run: |
+          python3 -u scripts/ptscps-responsive-logo-deploy.py
+      - name: Purge WordPress HTML cache to publish new srcset markup
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs > responsive-logo-cache-purge.log 2>&1 || { tail -n 24 responsive-logo-cache-purge.log; exit 1; }
+          grep '^WPSC_' responsive-logo-cache-purge.log | cut -c1-1300
+      - name: Verify selected image and logo geometry on real production URLs
+        run: |
+          node scripts/ptscps-responsive-logo-qa.cjs > responsive-logo-qa.log 2>&1 || { tail -n 20 responsive-logo-qa.log; exit 1; }
+          grep '^RESPONSIVE_LOGO_' responsive-logo-qa.log | cut -c1-3000
+      - name: Restore previous MU-plugin if any production step fails
+        if: failure()
+        run: |
+          python3 -u scripts/ptscps-responsive-logo-rollback.py || true
+      - name: Purge cache again if production reverted
+        if: failure()
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs || true
+      - name: Archive exact previous plugin and QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-responsive-logo-production-evidence
+          path: |
+            logo-responsive-before.php
+            responsive-logo-cache-purge.log
+            responsive-logo-qa.log
+          retention-days: 30
+          if-no-files-found: ignore
