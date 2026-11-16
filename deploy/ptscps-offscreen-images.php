@@ -117,3 +117,73 @@ add_filter(
     20,
     5
 );
+
+
+/**
+ * Elementor may serve cached widget HTML instead of invoking widget/render_content.
+ * The content filter still receives the complete generated page body; applying a
+ * second, idempotent pass fixes those cache hits without buffering the document.
+ * No modification is made to Elementor's saved widget configuration.
+ */
+add_filter(
+    'the_content',
+    static function ( $content ) {
+        if ( is_admin() || is_preview() || ! is_front_page() ||
+            isset( $_GET['elementor-preview'] ) ||
+            false === strpos( $content, 'swiper-slide-image' )
+        ) {
+            return $content;
+        }
+        $variants = array(
+            '2222221z5245174915163_4145568119040ed86e3b35d70f0b52ca-scaled.jpg' => array(
+                'file' => '2222221z5245174915163_4145568119040ed86e3b35d70f0b52ca-768x289.jpg',
+                'width' => 768,
+            ),
+            '333333z5245174082713_4252facd17ae73b1c1d1864970e283b0-scaled.jpg' => array(
+                'file' => '333333z5245174082713_4252facd17ae73b1c1d1864970e283b0-1024x354.jpg',
+                'width' => 1024,
+            ),
+        );
+        return preg_replace_callback(
+            '~<img\b[^>]*>~i',
+            static function ( $match ) use ( $variants ) {
+                $tag = $match[0];
+                if ( ! preg_match( '~\bclass\s*=\s*(["\'])(.*?)\1~is', $tag, $classes ) ||
+                    ! preg_match( '~(?:^|\s)swiper-slide-image(?:\s|$)~', $classes[2] )
+                ) {
+                    return $tag;
+                }
+                if ( ! preg_match( '~\bloading\s*=~i', $tag ) ) {
+                    $tag = preg_replace( '~\s*/?>$~', ' loading="lazy" />', $tag, 1 );
+                }
+                if ( ! preg_match( '~\bsrc\s*=\s*(["\'])(.*?)\1~is', $tag, $src_match ) ) {
+                    return $tag;
+                }
+                $src = html_entity_decode( $src_match[2], ENT_QUOTES, 'UTF-8' );
+                $path = wp_parse_url( $src, PHP_URL_PATH );
+                $original = $path ? basename( $path ) : '';
+                if ( ! isset( $variants[ $original ] ) ||
+                    false === strpos( (string) $path, '/wp-content/uploads/2024/04/' )
+                ) {
+                    return $tag;
+                }
+                $variant = $variants[ $original ];
+                $smaller = str_replace( $original, $variant['file'], $src );
+                $tag = str_replace( $src_match[0], 'src="' . esc_url( $smaller ) . '"', $tag );
+                if ( ! preg_match( '~\bsrcset\s*=~i', $tag ) ) {
+                    $tag = preg_replace(
+                        '~\s*/?>$~',
+                        ' srcset="' . esc_url( $smaller ) . ' ' . intval( $variant['width'] ) . 'w, ' .
+                        esc_url( $src ) . ' 2560w" sizes="(max-width: 767px) 76vw, (max-width: 1199px) 240px, 176px" />',
+                        $tag,
+                        1
+                    );
+                }
+                return $tag;
+            },
+            $content
+        );
+    },
+    9999,
+    1
+);
