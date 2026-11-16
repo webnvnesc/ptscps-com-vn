@@ -1,0 +1,43 @@
+name: PTSCPS SR7 selective plugin canary (deploy and verify)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-slim-canary.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  canary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax validation
+        shell: bash
+        run: |
+          php -l deploy/ptscps-sr7-slim-loader.php
+          python3 -m py_compile scripts/ptscps-sr7-slim-canary-deploy.py scripts/ptscps-sr7-slim-canary-qa.py
+      - name: Install only opt-in MU canary
+        run: python3 -u scripts/ptscps-sr7-slim-canary-deploy.py
+      - name: Verify exact native vs slim slide JSON and timings
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-sr7-slim-canary-qa.py > sr7-slim-canary.log 2>&1 || { tail -n 45 sr7-slim-canary.log; exit 1; }
+          grep -E '^SLIM_CANARY_(OK |SUMMARY |PASS)' sr7-slim-canary.log | cut -c1-2200
+      - name: Archive QA logs and previous MU file if any
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-slim-canary
+          path: |
+            sr7-slim-canary.log
+            sr7-slim-before.php
+          retention-days: 15
+          if-no-files-found: ignore
