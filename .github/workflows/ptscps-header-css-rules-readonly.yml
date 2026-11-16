@@ -1,0 +1,24 @@
+name: PTSCPS read-only inspect Jannah CSS column and logo rules
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-header-css-rules-readonly.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect CSS rule delivery (no website writes)
+        run: |
+          python3 -u scripts/ptscps-header-css-rules-readonly.py > header-css-rules.log 2>&1
+          grep '^CSS_FILE' header-css-rules.log | cut -c1-4500
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-header-css-rules-readonly
+          path: header-css-rules.log
+          retention-days: 10
