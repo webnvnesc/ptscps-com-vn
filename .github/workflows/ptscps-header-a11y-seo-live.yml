@@ -1,0 +1,66 @@
+name: PTSCPS production repair all header Accessibility SEO pages
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-header-a11y-seo-live.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate HTML modifier PHP and deploy/QA tools
+        run: |
+          php -l deploy/ptscps-header-pages-a11y-seo.php
+          python3 -m py_compile scripts/ptscps-header-pages-a11y-seo-deploy.py scripts/ptscps-header-pages-a11y-seo-rollback.py
+          node --check scripts/ptscps-header-a11y-seo-postdeploy.cjs
+      - name: Install Chromium and axe-core
+        run: |
+          npm install --no-save --no-audit --no-fund playwright @axe-core/playwright
+          npx playwright install --with-deps chromium
+      - name: Deploy precisely scoped owned MU plugin through FTPS
+        run: |
+          python3 -u scripts/ptscps-header-pages-a11y-seo-deploy.py
+      - name: Purge old HTML cache through WP Super Cache admin
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs > header-a11y-seo-purge.log 2>&1 || { tail -n 20 header-a11y-seo-purge.log; exit 1; }
+          grep '^WPSC_' header-a11y-seo-purge.log | cut -c1-1200
+      - name: Test all 14 header URLs with axe and SEO on desktop and mobile
+        run: |
+          node scripts/ptscps-header-a11y-seo-postdeploy.cjs > header-a11y-seo-qa.log 2>&1 || { tail -n 30 header-a11y-seo-qa.log; exit 1; }
+          grep '^HEADER_POST_QA_SUMMARY' header-a11y-seo-qa.log
+      - name: Rollback exactly our MU plugin if QA fails
+        if: failure()
+        run: |
+          python3 -u scripts/ptscps-header-pages-a11y-seo-rollback.py
+      - name: Purge cache after rollback
+        if: failure()
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs || true
+      - name: Store complete QA evidence and previous plugin for rollback
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-header-a11y-seo-production-evidence
+          path: |
+            header-a11y-seo-before.php
+            header-a11y-seo-purge.log
+            header-a11y-seo-qa.log
+            ptscps-header-after-fix.json
+          retention-days: 30
+          if-no-files-found: ignore
