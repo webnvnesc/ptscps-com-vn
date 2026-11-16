@@ -1,0 +1,141 @@
+name: PTSCPS CLS attribution (read-only browser)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-cls-diagnostics.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Record layout shifts, element geometry and slider initialization
+        shell: bash
+        run: |
+          cat > cls-diagnostic.cjs <<'NODE'
+          const {chromium} = require('playwright');
+          const fs = require('fs');
+          const url = 'https://ptscps.com.vn/';
+          fs.mkdirSync('cls-results',{recursive:true});
+          function short(s,n=180){return String(s||'').slice(0,n)}
+          async function run(browser,label,params) {
+            const context=await browser.newContext({
+              viewport:params.mobile?{width:412,height:823}:{width:1440,height:900},
+              isMobile:params.mobile,
+              deviceScaleFactor:params.mobile?1.75:1,
+              hasTouch:params.mobile,
+              locale:'vi-VN',
+              ignoreHTTPSErrors:false,
+            });
+            await context.addInitScript(() => {
+              const simple=(el)=>{
+                if(!el)return null;
+                const r=el.getBoundingClientRect();
+                return {
+                  tag:el.tagName, id:el.id, cls:String(el.className||'').slice(0,150),
+                  dataid:el.getAttribute('data-id'), 
+                  type:el.getAttribute('data-widget_type')||el.getAttribute('data-element_type'),
+                  text:(el.innerText||'').trim().slice(0,90),
+                  rect:{x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.width),h:Math.round(r.height)},
+                  css: (()=>{ const c=getComputedStyle(el);return {height:c.height,minHeight:c.minHeight,aspectRatio:c.aspectRatio,display:c.display,opacity:c.opacity,position:c.position,transform:c.transform,visibility:c.visibility};})(),
+                  nearestSection:(el.closest('.elementor-section')||el.closest('section'))?.getAttribute('data-id')||null,
+                  parent:(el.parentElement?.tagName||'')+'.'+String(el.parentElement?.className||'').slice(0,80)
+                };
+              };
+              window.__clsEvents=[];
+              window.__layoutSamples=[];
+              try {
+                new PerformanceObserver(list=>{
+                  for(const e of list.getEntries()){
+                    window.__clsEvents.push({
+                      start:Math.round(e.startTime),value:+e.value.toFixed(7),
+                      input:e.hadRecentInput,
+                      sources:(e.sources||[]).slice(0,8).map(s=>({
+                        node:s.node?simple(s.node):null,
+                        previous:s.previousRect,current:s.currentRect
+                      }))
+                    });
+                  }
+                }).observe({type:'layout-shift',buffered:true});
+              }catch(e){window.__clsError=String(e)}
+              let count=0;
+              const watch=()=>{
+                count++;
+                if(count>95){clearInterval(interval);return;}
+                const sections=Array.from(document.querySelectorAll('.elementor-section')).slice(0,6);
+                const s=sections.map(x=>({id:x.getAttribute('data-id'),r:simple(x)?.rect,
+                  children:Array.from(x.querySelectorAll('.elementor-widget')).slice(0,4).map(w=>({
+                    type:w.getAttribute('data-widget_type'),id:w.getAttribute('data-id'),rect:simple(w)?.rect
+                  }))
+                }));
+                const interesting=Array.from(document.querySelectorAll('rs-module-wrap, .rev_slider_wrapper, .elementor-swiper, .swiper-container, .swiper, .tie-slider, .elementor-widget-image-carousel, .elementor-widget-slides')).slice(0,8).map(simple);
+                const intro=Array.from(document.querySelectorAll('p')).find(e=>e.textContent?.includes('Công ty Cổ phần Dịch vụ Khai thác Dầu khí PTSC'));
+                const fpso=Array.from(document.images).find(e=>e.src.includes('fpso-ruby2'));
+                const hero=Array.from(document.images).filter(e=>/ruby.banner|banner2|banner3/i.test(e.alt||'')).slice(0,4);
+                const images=[fpso,...hero].filter(Boolean).map(e=>({...simple(e),src:e.currentSrc||e.src,loading:e.loading,natural:[e.naturalWidth,e.naturalHeight],attrs:[e.getAttribute('width'),e.getAttribute('height')],complete:e.complete}));
+                window.__layoutSamples.push({t:Math.round(performance.now()),sections:s,interesting,intro:simple(intro),images});
+              };
+              const interval=setInterval(watch,100);
+              document.addEventListener('DOMContentLoaded',watch,{once:true});
+            });
+            const page=await context.newPage();
+            const err=[];
+            page.on('pageerror',e=>err.push(String(e.message).slice(0,120)));
+            if(params.throttled){
+              const cdp=await context.newCDPSession(page);
+              await cdp.send('Network.enable');
+              await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:150,downloadThroughput:180*1024,uploadThroughput:84*1024});
+              await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+            }
+            let nav=null;
+            try{
+              const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:70000});
+              nav={http:response.status(),at:Date.now(),finalUrl:page.url()};
+              await page.waitForTimeout(9300);
+              const results=await page.evaluate(()=>{
+                const events=window.__clsEvents||[],samples=window.__layoutSamples||[];
+                // First/last + samples around notable geometry transitions
+                const keep=samples.filter((x,i)=>i===0 || i===samples.length-1 || i%5===0 || (i>0&&Math.abs((x.intro?.rect?.y||0)-(samples[i-1].intro?.rect?.y||0))>4) );
+                return {events,samples:keep,counts:{events:events.length,samples:samples.length},error:window.__clsError||null,timing:performance.getEntriesByType('navigation').map(n=>({dom:n.domContentLoadedEventEnd,load:n.loadEventEnd})),viewport:{w:innerWidth,h:innerHeight}};
+              });
+              const total=results.events.filter(e=>!e.input).reduce((s,e)=>s+e.value,0);
+              console.log('RESULT '+label+' '+JSON.stringify({navigation:nav,viewport:results.viewport,cls_sum:+total.toFixed(6),counts:results.counts,error:results.error,pageErrors:err}));
+              for(const e of results.events.filter(x=>!x.input)) console.log('SHIFT '+label+' '+JSON.stringify(e));
+              for(const x of results.samples) console.log('SAMPLE '+label+' '+JSON.stringify(x));
+              fs.writeFileSync('cls-results/'+label+'.json',JSON.stringify({...results,label,nav,pageErrors:err,cls_sum:total},null,2));
+              await page.screenshot({path:'cls-results/'+label+'.png',fullPage:false,animations:'disabled'});
+            }catch(e){console.log('ERROR '+label+' '+String(e.stack||e));}
+            finally{await context.close()}
+          }
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            try{
+              await run(browser,'mobile_throttled',{mobile:true,throttled:true});
+              await run(browser,'mobile_fast',{mobile:true,throttled:false});
+              await run(browser,'desktop_fast',{mobile:false,throttled:false});
+            } finally {await browser.close()}
+          })().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
+          node cls-diagnostic.cjs > cls-output.log 2>&1
+          grep -E '^(RESULT|SHIFT|ERROR)' cls-output.log | cut -c1-4200
+          echo "Saved full samples and reports to artifacts."
+          cp cls-output.log cls-results/
+      - name: Upload CLS diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-cls-browser-trace
+          path: cls-results/
+          retention-days: 7
+          if-no-files-found: warn
