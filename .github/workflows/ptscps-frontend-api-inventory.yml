@@ -2,7 +2,7 @@ name: PTSCPS audit frontend API requests across page types
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/ptscps-frontend-api-inventory.yml"]
+    paths: [".github/workflows/ptscps-frontend-api-inventory.yml", "scripts/ptscps-frontend-api-inventory.cjs"]
   workflow_dispatch:
 permissions:
   contents: read
