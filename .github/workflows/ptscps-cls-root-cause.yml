@@ -112,7 +112,7 @@ jobs:
                     allSliders:[...document.querySelectorAll('sr7-module, sr7-module-wrap, rs-module, rs-module-wrap')].slice(0,6).map(x=>({tag:x.tagName,html:x.outerHTML.slice(0,2000)}))}
                   }};
               });
-              console.log('NET',net,'HTTP',response.status(),'SAMPLES',info.snap.length,'SHIFTS',info.shift.map(x=>({t:x.t,v:x.v,who:x.pre.map(z=>({tag:z.who?.tag,cls:z.who?.cls,y:z.who?.y}))})));
+              console.log('NET',net,'HTTP',response.status(),'SAMPLES',info.snap.length,'SHIFTS',JSON.stringify(info.shift).slice(0,3000));
               console.log('STATIC',net,JSON.stringify(info.info).slice(0,9000));
               for(const s of info.snap)console.log('SAMPLE',net,JSON.stringify(s).slice(0,4000));
               await context.close()
@@ -120,5 +120,5 @@ jobs:
             await browser.close()
           })().catch(e=>{console.error(e);process.exitCode=1});
           NODE
-          node deep-probe.cjs > probe.log 2>&1
+          node deep-probe.cjs > probe.log 2>&1 || { tail -n 30 probe.log; exit 1; }
           grep -E '^(NET|STATIC|SAMPLE)' probe.log | cut -c1-7000
