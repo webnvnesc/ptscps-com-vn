@@ -1,0 +1,53 @@
+name: PTSCPS SR7 slide 2 and 3 static FastPath (deploy and verify)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-sr7-fastpath-deploy.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate sync PHP, FTPS and QA scripts
+        shell: bash
+        run: |
+          php -l deploy/ptscps-sr7-fastpath-sync.php
+          python3 -m py_compile scripts/deploy-ptscps-sr7-fastpath.py scripts/ptscps-sr7-fastpath-qa.py scripts/ptscps-sr7-fastpath-rollback.py
+      - name: Stage static JSON, install native hooks, then enable exact Apache rewrites
+        shell: bash
+        run: |
+          python3 -u scripts/deploy-ptscps-sr7-fastpath.py > sr7-fastpath-deploy.log 2>&1 || { tail -n 50 sr7-fastpath-deploy.log; exit 1; }
+          tail -n 25 sr7-fastpath-deploy.log
+      - name: Verify native fallback, exact JSON and static backend
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-sr7-fastpath-qa.py > sr7-fastpath-qa.log 2>&1 || { tail -n 55 sr7-fastpath-qa.log; exit 1; }
+          grep -E '^FASTPATH_(QA |VERIFIED |TIMING |QA_SUCCESS)' sr7-fastpath-qa.log | cut -c1-3500
+      - name: Automatically restore previous WordPress rewrite on test failure
+        if: failure()
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-sr7-fastpath-rollback.py || true
+      - name: Archive deployment evidence and original .htaccess
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-fastpath-proof-and-rollback
+          path: |
+            sr7-fastpath-deploy.log
+            sr7-fastpath-qa.log
+            sr7-before-*
+          retention-days: 30
+          if-no-files-found: ignore
