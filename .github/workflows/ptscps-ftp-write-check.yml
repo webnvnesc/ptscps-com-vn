@@ -1,0 +1,125 @@
+name: PTSCPS FTPS write permission probe (temporary files only)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-ftp-write-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ftp-write-check:
+    name: Create, read, overwrite and delete disposable FTPS test files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      FTP_DIRECTORY: /domains/ptscps.com.vn/public_html
+    steps:
+      - name: Verify directory-specific file write permissions without altering existing WordPress files
+        shell: bash
+        run: |
+          python3 -u - <<'PY'
+          import ftplib
+          import io
+          import os
+          import socket
+          import sys
+          import uuid
+          from urllib.parse import urlsplit
+
+          server = os.environ.get("FTP_SERVER", "").strip()
+          username = os.environ.get("FTP_USERNAME", "")
+          password = os.environ.get("FTP_PASSWORD", "")
+          target = os.environ["FTP_DIRECTORY"].rstrip("/")
+          if not (server and username and password):
+              sys.exit("FAIL: Required FTP secrets are missing.")
+
+          parsed = urlsplit(server if "://" in server else "//" + server)
+          host = parsed.hostname
+          port = parsed.port or 21
+          if not host:
+              sys.exit("FAIL: Invalid FTP server hostname.")
+
+          # Use only known WordPress paths, with uniquely named disposable files.
+          paths = [
+              ("WordPress root", ""),
+              ("wp-content", "wp-content"),
+              ("plugins", "wp-content/plugins"),
+              ("themes", "wp-content/themes"),
+              ("uploads", "wp-content/uploads"),
+          ]
+          ftp = ftplib.FTP_TLS()
+          failed = False
+          try:
+              socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+              ftp.connect(host, port, timeout=20)
+              ftp.auth()
+              ftp.login(username, password)
+              ftp.prot_p()
+              ftp.set_pasv(True)
+              ftp.cwd(target)
+
+              # Stop on an unexpected target: do not write outside this installation.
+              present = {name.rstrip("/").split("/")[-1] for name in ftp.nlst()}
+              if not {"wp-admin", "wp-content", "wp-includes", "index.php"}.issubset(present):
+                  sys.exit("FAIL: Target is not the expected WordPress document root.")
+              print("PASS: Connected to expected WordPress production directory using encrypted FTPS.", flush=True)
+
+              for label, relative in paths:
+                  full = target + ("/" + relative if relative else "")
+                  filename = ".ptscps-write-check-" + uuid.uuid4().hex + ".tmp"
+                  probe = b"ptscps temporary FTPS write test (no site content or secrets)\n"
+                  updated = probe + b"overwrite verification\n"
+                  wrote = False
+                  try:
+                      ftp.cwd(full)
+                      # UUID plus pre-flight check prevent accidental modification of other files.
+                      names = {name.rstrip("/").split("/")[-1] for name in ftp.nlst()}
+                      if filename in names:
+                          raise RuntimeError("Unexpected filename collision")
+                      wrote = True
+                      ftp.storbinary("STOR " + filename, io.BytesIO(probe))
+                      print("PASS: CREATE " + label, flush=True)
+
+                      data = bytearray()
+                      ftp.retrbinary("RETR " + filename, data.extend)
+                      if data != probe:
+                          raise RuntimeError("Initial file readback mismatch")
+                      print("PASS: READ " + label, flush=True)
+
+                      ftp.storbinary("STOR " + filename, io.BytesIO(updated))
+                      data = bytearray()
+                      ftp.retrbinary("RETR " + filename, data.extend)
+                      if data != updated:
+                          raise RuntimeError("Updated file readback mismatch")
+                      print("PASS: OVERWRITE-OWN-TEST-FILE " + label, flush=True)
+                  except Exception as exc:
+                      failed = True
+                      print("FAIL: " + label + " (" + type(exc).__name__ + ")", flush=True)
+                  finally:
+                      if wrote:
+                          try:
+                              ftp.delete(filename)
+                              print("PASS: DELETE test file " + label, flush=True)
+                          except Exception as exc:
+                              failed = True
+                              print("FAIL: CLEANUP " + label + " (" + type(exc).__name__ + ") path=" + full + "/" + filename, flush=True)
+
+              if failed:
+                  sys.exit("FAIL: One or more directories lacked required permissions, or cleanup failed.")
+              print("SUCCESS: Create/read/overwrite/delete permissions verified in all listed WordPress directories.", flush=True)
+          except Exception as exc:
+              print("FAIL: FTPS probe (" + type(exc).__name__ + ")", flush=True)
+              sys.exit(1)
+          finally:
+              try:
+                  ftp.quit()
+              except Exception:
+                  ftp.close()
+          PY
