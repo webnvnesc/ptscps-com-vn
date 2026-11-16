@@ -1,0 +1,37 @@
+name: PTSCPS FCP critical CSS request waterfall read only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-waterfall-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  waterfall:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Measure CSS response waterfall and resource priorities
+        shell: bash
+        run: |
+          node --check scripts/ptscps-waterfall-audit.cjs
+          node scripts/ptscps-waterfall-audit.cjs > waterfall.log 2>&1 || { tail -n 40 waterfall.log; exit 1; }
+          grep -E '^(PAGE|CSS|CRITICAL_SUMMARY)' waterfall.log | cut -c1-2200
+      - name: Store full waterfall
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-css-waterfall
+          path: |
+            waterfall-results/
+            waterfall.log
+          retention-days: 10
+          if-no-files-found: warn
