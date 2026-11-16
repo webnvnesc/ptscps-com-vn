@@ -1,0 +1,47 @@
+name: PTSCPS paired FCP A/B for lazy versus eager images (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-image-fcp-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    strategy:
+      fail-fast: false
+      matrix:
+        page: [home, archive]
+        width: [412, 1440]
+    env:
+      TEST_PAGE: ${{ matrix.page }}
+      TEST_WIDTH: ${{ matrix.width }}
+      TEST_CYCLES: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Measure paired 5-cycle A/B performance without production edits
+        shell: bash
+        run: |
+          node --check scripts/ptscps-image-fcp-ab.cjs
+          node scripts/ptscps-image-fcp-ab.cjs > image-fcp-ab.log 2>&1 || { tail -n 30 image-fcp-ab.log; exit 1; }
+          grep '^SUMMARY ' image-fcp-ab.log | cut -c1-5000
+          grep '^CASE ' image-fcp-ab.log | cut -c1-900
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-fcp-images-ab-${{ matrix.page }}-${{ matrix.width }}
+          path: |
+            fcp-images-ab-${{ matrix.page }}-${{ matrix.width }}/
+            image-fcp-ab.log
+          retention-days: 10
+          if-no-files-found: warn
