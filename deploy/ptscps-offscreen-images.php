@@ -36,14 +36,10 @@ add_filter(
                 'width' => 768,
             ),
             '333333z5245174082713_4252facd17ae73b1c1d1864970e283b0-scaled.jpg' => array(
-                'file' => '333333z5245174082713_4252facd17ed6d2f0b52ca-1024x354.jpg',
+                'file' => '333333z5245174082713_4252facd17ae73b1c1d1864970e283b0-1024x354.jpg',
                 'width' => 1024,
             ),
         );
-        // The second full path is deliberately constructed from the verified
-        // original filename below; no guessed physical filename is used.
-        $variants['333333z5245174082713_4252facd17ae73b1c1d1864970e283b0-scaled.jpg']['file'] =
-            '333333z5245174082713_4252facd17ae73b1c1d1864970e283b0-1024x354.jpg';
 
         return preg_replace_callback(
             '~<img\b[^>]*>~i',
