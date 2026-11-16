@@ -1,0 +1,45 @@
+name: PTSCPS P2 SR7 first-banner preload paired AB (read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-p2-banner-preload-ab.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  paired:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [412, 1440]
+    env:
+      TEST_WIDTH: ${{ matrix.width }}
+      TEST_CYCLES: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare baseline, preload and priority preload
+        shell: bash
+        run: |
+          node --check scripts/ptscps-p2-banner-preload-ab.cjs
+          node scripts/ptscps-p2-banner-preload-ab.cjs > p2-banner.log 2>&1 || { tail -n 35 p2-banner.log; exit 1; }
+          grep '^P2_SUMMARY' p2-banner.log | cut -c1-6500
+      - name: Save paired evidence and first-cycle screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-p2-first-slide-${{ matrix.width }}
+          path: |
+            p2-banner.log
+            p2-banner-${{ matrix.width }}/
+          retention-days: 10
+          if-no-files-found: warn
