@@ -1,0 +1,90 @@
+name: FTPS read-only WordPress source check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-ftp-readonly-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ftp-check:
+    name: Verify secure FTP login and source file read
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      FTP_DIRECTORY: /domains/ptscps.com.vn/public_html
+    steps:
+      - name: Test explicit FTPS without changing live files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import ftplib
+          import os
+          import socket
+          import sys
+          from urllib.parse import urlsplit
+
+          server = os.environ.get("FTP_SERVER", "").strip()
+          username = os.environ.get("FTP_USERNAME", "")
+          password = os.environ.get("FTP_PASSWORD", "")
+          target = os.environ["FTP_DIRECTORY"]
+
+          if not all((server, username, password)):
+              sys.exit("FAIL: Required FTP secrets are missing.")
+          raw = server if "://" in server else "//" + server
+          parsed = urlsplit(raw)
+          host = parsed.hostname
+          port = parsed.port or 21
+          if not host:
+              sys.exit("FAIL: FTP_SERVER does not contain a valid hostname.")
+
+          try:
+              socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+              print("PASS: FTP server DNS resolves.")
+          except OSError:
+              sys.exit("FAIL: FTP server DNS resolution failed.")
+
+          ftp = ftplib.FTP_TLS()
+          try:
+              ftp.connect(host, port, timeout=15)
+              ftp.auth()  # Never send credentials over unencrypted FTP
+              ftp.login(username, password)
+              ftp.prot_p()  # Encrypt file data transfers too
+              ftp.set_pasv(True)
+              print("PASS: Secure explicit FTPS login.")
+
+              ftp.cwd(target)
+              names = ftp.nlst()
+              entries = {item.rstrip("/").split("/")[-1] for item in names}
+              required = {"wp-admin", "wp-content", "wp-includes", "index.php"}
+              if not required.issubset(entries):
+                  sys.exit("FAIL: WordPress source root is missing core markers.")
+              print("PASS: WordPress source root directory can be listed.")
+
+              content = bytearray()
+              def add_chunk(chunk):
+                  if len(content) + len(chunk) > 262144:
+                      raise ValueError("Unexpectedly large version.php")
+                  content.extend(chunk)
+
+              ftp.retrbinary("RETR wp-includes/version.php", add_chunk)
+              if b"$wp_version" not in content:
+                  sys.exit("FAIL: Retrieved file lacks expected WordPress version marker.")
+              print("PASS: Can read WordPress PHP source file over encrypted FTPS.")
+              print("SUCCESS: FTP credentials have read access to the WordPress source.")
+          except (OSError, ftplib.all_errors, ValueError) as exc:
+              print("FAIL: Secure FTP verification failed (", type(exc).__name__, ").")
+              sys.exit(1)
+          finally:
+              try:
+                  ftp.quit()
+              except Exception:
+                  ftp.close()
+          PY
