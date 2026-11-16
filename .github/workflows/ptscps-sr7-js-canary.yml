@@ -1,0 +1,49 @@
+name: PTSCPS conditional SR7 JS canary FTPS and browser QA
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-js-canary.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  canary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Validate and install opt-in test (normal visitors unchanged)
+        shell: bash
+        run: |
+          php -l deploy/ptscps-sr7-conditional-js.php
+          python3 -m py_compile scripts/deploy-ptscps-sr7-conditional-canary.py
+          node --check scripts/ptscps-sr7-conditional-canary-qa.cjs
+          python3 -u scripts/deploy-ptscps-sr7-conditional-canary.py
+      - name: Verify conditional JS loading with browser
+        shell: bash
+        run: |
+          node scripts/ptscps-sr7-conditional-canary-qa.cjs > conditional-sr7-canary.log 2>&1 || { tail -n 45 conditional-sr7-canary.log; exit 1; }
+          grep '^SR7_GATE_PAIR' conditional-sr7-canary.log | cut -c1-5000
+      - name: Keep QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-conditional-sr7-canary
+          path: conditional-sr7-canary.log
+          retention-days: 10
+          if-no-files-found: ignore
