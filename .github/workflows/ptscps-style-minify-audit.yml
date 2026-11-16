@@ -22,7 +22,7 @@ jobs:
         run: |
           node --check scripts/ptscps-style-css-minify-audit.cjs
           node scripts/ptscps-style-css-minify-audit.cjs > minify.log 2>&1 || { tail -n 40 minify.log; exit 1; }
-          grep -E '^(VARIANT|CSS_STRUCTURE|HASHES)' minify.log
+          grep -E '^(VARIANT|CSS_STRUCTURE|HASHES|OPTIMIZER_REJECT)' minify.log
       - name: Save size analysis
         if: always()
         uses: actions/upload-artifact@v4
@@ -33,3 +33,5 @@ jobs:
             minify.log
           retention-days: 10
           if-no-files-found: warn
+
+# Rerun parser-safe Jannah CSS size audit
