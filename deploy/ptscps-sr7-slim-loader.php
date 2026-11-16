@@ -2,9 +2,9 @@
 /**
  * Plugin Name: PTSCPS SR7 REST Selective Plugin Loader
  * Description: Optimize only anonymous Slider Revolution 7 slide REST GET requests.
- * Version: 1.0.0-canary
+ * Version: 1.1.0
  *
- * Canary only: requires the optional ptscps_sr7_slim_probe=1 request parameter.
+ * Live mode for exact anonymous Slider Revolution REST routes.
  * Keep full WordPress core and Slider Revolution active. Never modify stored
  * active_plugins option or change WordPress admin/editor/preview requests.
  */
@@ -40,8 +40,8 @@ function ptscps_sr7_slim_target_request() {
     return true;
 }
 function ptscps_sr7_slim_enabled() {
-    // Change to true only after canary payload and browser QA pass.
-    return isset( $_GET['ptscps_sr7_slim_probe'] ) && '1' === (string) $_GET['ptscps_sr7_slim_probe'];
+    // Validated canary: JSON identical for both slides; anonymous GET only.
+    return true;
 }
 add_filter( 'option_active_plugins', static function ( $plugins ) {
     if ( ! is_array( $plugins ) || ! ptscps_sr7_slim_target_request() || ! ptscps_sr7_slim_enabled() ) {
