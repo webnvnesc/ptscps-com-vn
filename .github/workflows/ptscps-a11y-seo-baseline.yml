@@ -1,0 +1,39 @@
+name: PTSCPS Accessibility and SEO baseline (anonymous read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-a11y-seo-baseline.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser and axe-core Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright @axe-core/playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect anonymous site HTML, headings, links and contrast
+        shell: bash
+        run: |
+          node --check scripts/ptscps-a11y-seo-baseline.cjs
+          node scripts/ptscps-a11y-seo-baseline.cjs > a11y-baseline.log 2>&1 || { tail -n 50 a11y-baseline.log; exit 1; }
+          grep '^A11Y_SEO_PAGE' a11y-baseline.log | cut -c1-3500
+          grep '^HOME_' a11y-baseline.log | cut -c1-13000
+      - name: Store full audit traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-anonymous-a11y-seo-baseline
+          path: |
+            a11y-baseline.log
+            a11y-seo-baseline/
+          retention-days: 10
+          if-no-files-found: warn
