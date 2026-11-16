@@ -1,0 +1,33 @@
+name: PTSCPS discover real header menu URLs for comprehensive a11y SEO
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-all-header-pages-discovery.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Discover desktop and mobile header links
+        run: |
+          node scripts/ptscps-all-header-pages-discovery.cjs > menu-discovery.log 2>&1 || { tail -n 25 menu-discovery.log; exit 1; }
+          grep '^HEADER_DISCOVERY_SUMMARY' menu-discovery.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-navigation-pages
+          path: |
+            ptscps-header-pages.json
+            menu-discovery.log
+          retention-days: 14
