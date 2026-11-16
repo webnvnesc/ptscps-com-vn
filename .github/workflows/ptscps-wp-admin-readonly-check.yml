@@ -1,0 +1,106 @@
+name: WordPress admin read-only login check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-wp-admin-readonly-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wp-admin-check:
+    name: Verify WordPress admin login without site changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - name: Check WordPress authentication and dashboard (read-only)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import http.cookiejar
+          import os
+          import ssl
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          base = "https://ptscps.com.vn"
+          host = urllib.parse.urlparse(base).hostname
+          username = os.environ.get("WP_ADMIN_USERNAME", "")
+          password = os.environ.get("WP_ADMIN_PASSWORD", "")
+          if not username or not password:
+              sys.exit("FAIL: WP_ADMIN_USERNAME or WP_ADMIN_PASSWORD secret missing.")
+
+          class StayOnSite(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  parsed = urllib.parse.urlparse(newurl)
+                  if parsed.scheme != "https" or parsed.hostname != host:
+                      raise ValueError("Unexpected cross-site or insecure redirect")
+                  return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+          jar = http.cookiejar.CookieJar()
+          opener = urllib.request.build_opener(
+              urllib.request.HTTPCookieProcessor(jar),
+              urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+              StayOnSite(),
+          )
+          def fetch(url, data=None, referer=None):
+              req = urllib.request.Request(url, data=data, headers={
+                  "User-Agent": "Mozilla/5.0 (compatible; WPAdminReadOnlyCheck/1.0)",
+                  "Accept": "text/html,application/xhtml+xml",
+                  **({"Content-Type": "application/x-www-form-urlencoded"} if data is not None else {}),
+                  **({"Referer": referer} if referer else {}),
+              })
+              with opener.open(req, timeout=25) as response:
+                  result = response.read(400000)
+                  return response.status, response.url, result
+
+          login = base + "/wp-login.php"
+          dashboard = base + "/wp-admin/"
+          try:
+              status, url, html = fetch(login)
+              print("Login page HTTP status:", status)
+              if "/wp-login.php" not in urllib.parse.urlparse(url).path:
+                  sys.exit("FAIL: Login page redirected away from wp-login.php (possibly custom login or security policy).")
+              print("PASS: WordPress login endpoint is reachable.")
+
+              form = urllib.parse.urlencode({
+                  "log": username,
+                  "pwd": password,
+                  "wp-submit": "Log In",
+                  "redirect_to": dashboard,
+                  "testcookie": "1",
+              }).encode("utf-8")
+              status, url, html = fetch(login, form, login)
+              authenticated_cookie = any(
+                  cookie.name.startswith(("wordpress_logged_in_", "wordpress_sec_"))
+                  for cookie in jar
+              )
+              if not authenticated_cookie:
+                  print("FAIL: No WordPress authentication cookie returned after login.")
+                  print("Result page path:", urllib.parse.urlparse(url).path)
+                  sys.exit(1)
+              print("PASS: WordPress authentication cookie received.")
+
+              status, url, html = fetch(dashboard)
+              path = urllib.parse.urlparse(url).path
+              if not path.startswith("/wp-admin/") or b'id="adminmenu"' not in html and b'id="wpbody-content"' not in html:
+                  print("FAIL: WordPress admin dashboard was not available to the session.")
+                  print("Result page path:", path, "; HTTP:", status)
+                  sys.exit(1)
+              print("PASS: Authenticated WordPress admin dashboard loaded.")
+              print("SUCCESS: WordPress admin is accessible with the configured credentials.")
+          except urllib.error.HTTPError as exc:
+              print("FAIL: WordPress returned HTTP", exc.code)
+              sys.exit(1)
+          except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+              print("FAIL: Request failed:", type(exc).__name__)
+              sys.exit(1)
+          PY
