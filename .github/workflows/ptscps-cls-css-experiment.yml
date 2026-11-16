@@ -1,0 +1,77 @@
+name: PTSCPS CLS CSS candidates (no production changes)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-cls-css-experiment.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install browser dependencies
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare response-injected CSS (does not modify server)
+        shell: bash
+        run: |
+          cat > experiment.cjs <<'NODE'
+          const {chromium}=require('playwright');
+          const results=[];
+          const sel='body.home.page-id-5:not(.elementor-editor-active) .elementor-element-77137dd sr7-module#SR7_1_1';
+          const candidates={
+            baseline:'',
+            fixed_ratio_height:sel+'{height:calc((100vw - 30px) * .528443)!important;}',
+            fixed_ratio_clip:sel+'{height:calc((100vw - 30px) * .528443)!important;overflow:hidden!important;}',
+            max_ratio_clip:sel+'{max-height:calc((100vw - 30px) * .528443)!important;overflow:hidden!important;}',
+            aspect_auto_clip:sel+'{height:auto!important;aspect-ratio:668/353;overflow:hidden!important;}'
+          };
+          const browser=await chromium.launch({headless:true});
+          async function measure(name,slow) {
+            const context=await browser.newContext({viewport:{width:412,height:823},isMobile:true,hasTouch:true,deviceScaleFactor:1.75});
+            const page=await context.newPage();
+            const css=candidates[name]||'';
+            if(css) {
+              await page.route('https://ptscps.com.vn/',async route=>{
+                const response=await route.fetch();
+                const html=await response.text();
+                const payload=html.replace(/<head([^>]*)>/i,'<head$1><style id="ptscps-cls-experiment">'+css+'</style>');
+                await route.fulfill({response,body:payload});
+              });
+            }
+            await page.addInitScript(()=>{
+              window.__events=[];
+              try{new PerformanceObserver(list=>{for(const e of list.getEntries())window.__events.push({v:e.value,t:Math.round(e.startTime),input:e.hadRecentInput})}).observe({type:'layout-shift',buffered:true});}catch(e){}
+            });
+            if(slow){
+              const cdp=await context.newCDPSession(page);
+              await cdp.send('Network.enable');
+              await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:150,downloadThroughput:190*1024,uploadThroughput:80*1024});
+              await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+            }
+            try {
+              const response=await page.goto('https://ptscps.com.vn/',{waitUntil:'domcontentloaded',timeout:60000});
+              await page.waitForTimeout(7800);
+              const out=await page.evaluate(()=>{
+                const $=(q)=>document.querySelector(q);
+                const rect=(q)=>{const e=$(q);if(!e)return null;const r=e.getBoundingClientRect();return {y:Math.round(r.y),w:Math.round(r.width),h:Math.round(r.height),attrH:e.getAttribute('style')?.slice(0,100),compH:getComputedStyle(e).height}};
+                return {cls:(window.__events||[]).filter(e=>!e.input).reduce((s,e)=>s+e.v,0),events:window.__events,bodyClass:document.body.className,styleInjected:!!$('#ptscps-cls-experiment'),selector:!!$( 'sr7-module#SR7_1_1'),slider:rect('.elementor-element-77137dd'),module:rect('sr7-module#SR7_1_1'),intro:rect('.elementor-element-920fc5e')};
+              });
+              const item={case:name,slow,http:response.status(),...out};results.push(item);
+              console.log('RESULT',JSON.stringify(item).slice(0,2800));
+            }catch(e){console.log('ERROR',name,slow,e.message.slice(0,300));process.exitCode=1}
+            await context.close();
+          }
+          try{
+            for(const name of Object.keys(candidates))await measure(name,false);
+            await measure('baseline',true);
+            await measure('fixed_ratio_clip',true);
+          }finally {await browser.close();}
+          NODE
+          node experiment.cjs
