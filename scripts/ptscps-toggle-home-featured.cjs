@@ -31,9 +31,10 @@ async function saveFlag(checked){
  assert((await input.isChecked())===checked,'Jannah checkbox input state not changed');
  const submit=editor.locator('#publish');
  assert((await submit.count())===1,'Expected classic WordPress update button missing');
- await submit.click({force:true,timeout:30000});
- // WordPress classic post form may redirect or display editor after update.
- await editor.waitForLoadState('domcontentloaded',{timeout:65000});
+ await Promise.all([
+  editor.waitForNavigation({waitUntil:'domcontentloaded',timeout:65000}),
+  submit.click({force:true,timeout:30000})
+ ]);
  await editor.waitForTimeout(950);
  await openEditor();
  const persisted=await editor.locator(FLAG).isChecked();
