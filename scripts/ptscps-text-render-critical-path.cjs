@@ -48,7 +48,7 @@ async function runOne(browser,cycle) {
  let t0=null;
  cdp.on('Network.requestWillBeSent',e=>{
   if(t0===null&&e.type==='Document')t0=e.timestamp;
-  if(/\.css(?:[?#]|$)|\.woff2?(?:[?#]|$)|\/fonts|font\.googleapis|exo|jquery|sr7/i.test(e.request.url)){
+  if(/\.css(?:[?#]|$)|\.woff2?(?:[?#]|$)|\/fonts|font\.googleapis|exo|jquery|sr7|logo-2024\.jpg/i.test(e.request.url)){
    requests.set(e.requestId,{
     url:e.request.url,type:e.type,priority:e.request.initialPriority||null,
     start:Math.round((e.timestamp-(t0??e.timestamp))*1000)
@@ -73,6 +73,8 @@ async function runOne(browser,cycle) {
   const p=[...document.querySelectorAll('p')].find(x=>(x.textContent||'').includes('Công ty Cổ phần Dịch vụ Khai thác Dầu khí PTSC'));
   const css=p?getComputedStyle(p):null;
   const r=p?.getBoundingClientRect();
+  const l=[...document.images].find(i=>(i.currentSrc||i.src||'').includes('logo-2024.jpg'));
+  const lr=l?.getBoundingClientRect();
   const fonts=[...document.fonts].filter(f=>/exo|roboto|sans/i.test(f.family)).map(x=>({
    family:x.family,style:x.style,weight:x.weight,display:x.display,status:x.status
   }));
@@ -84,6 +86,7 @@ async function runOne(browser,cycle) {
     cls:window.__ptscpsRender.shifts.reduce((a,e)=>a+e.v,0),
     fontEvents:window.__ptscpsRender.fontEvents,
     fontStatus:document.fonts.status,fonts,
+    logo2024:l?{src:l.currentSrc||l.src,loading:l.loading,fetchPriority:l.fetchPriority,decoding:l.decoding,complete:l.complete,naturalWidth:l.naturalWidth,naturalHeight:l.naturalHeight,rect:lr?[lr.x,lr.y,lr.width,lr.height].map(Math.round):null,outerHTML:l.outerHTML.slice(0,500)}:null,
     intro:p?{
      text:p.textContent.trim().slice(0,190),rect:r?[r.x,r.y,r.width,r.height].map(Math.round):null,
      family:css.fontFamily,weight:css.fontWeight,size:css.fontSize,lineHeight:css.lineHeight,
@@ -123,7 +126,7 @@ async function runOne(browser,cycle) {
   cycle,width,http:out.http,ttfb:out.late?.ttfb,fcp:out.late?.fcp,lcp:out.late?.lcp?.at(-1),
   gap:out.fcpAfterTtfb,mainCSS:out.mainCSS,fonts:out.fontFiles,face:out.late?.fonts?.filter(f=>f.status==='loaded').slice(0,16),
   events:out.late?.fontEvents,platformFonts:out.platformFonts,platformError:out.platformError,
-  intro:out.late?.intro,cls:out.late?.cls,errors:out.errors,error:out.error
+  intro:out.late?.intro,logo2024:out.late?.logo2024,logoNetwork:out.requests?.filter(x=>x.url.includes('logo-2024.jpg')),cls:out.late?.cls,errors:out.errors,error:out.error
  }));
  fs.writeFileSync(root+'/cycle-'+cycle+'.json',JSON.stringify(out,null,2));
  await context.close();
