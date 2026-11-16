@@ -1,0 +1,56 @@
+name: PTSCPS replace static SR7 FastPath with selective plugin loading
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-slim-transition.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  replace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate production plugin and deployment scripts
+        shell: bash
+        run: |
+          php -l deploy/ptscps-sr7-slim-loader.php
+          python3 -m py_compile scripts/ptscps-sr7-slim-transition.py scripts/ptscps-sr7-slim-live-qa.py scripts/ptscps-sr7-slim-transition-rollback.py
+      - name: Switch from static JSON to native WP REST with slim plugins
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-sr7-slim-transition.py > slim-transition.log 2>&1 || { tail -n 40 slim-transition.log; exit 1; }
+          cat slim-transition.log
+      - name: Verify slide JSON, auth exclusion, endpoints and timing
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-sr7-slim-live-qa.py > slim-live-qa.log 2>&1 || { tail -n 50 slim-live-qa.log; exit 1; }
+          grep -E '^SLIM_LIVE_(CASE |EQUIVALENT |UNAFFECTED |SUMMARY |PASS)' slim-live-qa.log | cut -c1-2500
+      - name: Restore exact prior FastPath if the live test fails
+        if: failure()
+        shell: bash
+        run: |
+          if test -f sr7-transition-before-root.htaccess; then
+            python3 -u scripts/ptscps-sr7-slim-transition-rollback.py
+          fi
+      - name: Archive original server files and proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-slim-rollback-and-results
+          path: |
+            slim-transition.log
+            slim-live-qa.log
+            sr7-transition-before-root.htaccess
+            sr7-transition-before-slim-loader.php
+            sr7-transition-before-fastpath-sync.php
+          retention-days: 30
+          if-no-files-found: ignore
