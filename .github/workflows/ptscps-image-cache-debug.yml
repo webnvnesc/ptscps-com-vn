@@ -2,7 +2,9 @@ name: PTSCPS image cache and MU plugin output diagnosis (read only)
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/ptscps-image-cache-debug.yml"]
+    paths:
+      - ".github/workflows/ptscps-image-cache-debug.yml"
+      - "scripts/ptscps-image-cache-debug.py"
   workflow_dispatch:
 permissions:
   contents: read
