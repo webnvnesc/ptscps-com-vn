@@ -1,0 +1,36 @@
+name: PTSCPS FCP HTML asset dequeue A/B (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-fcp-dequeue-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Browser-only remove individual stylesheet tags
+        shell: bash
+        run: |
+          node --check scripts/fcp-resource-dequeue-probe.cjs
+          mkdir -p resource-results
+          node scripts/fcp-resource-dequeue-probe.cjs > resource-results/probe.log 2>&1 || { tail -n 40 resource-results/probe.log; exit 1; }
+          grep '^RESULT ' resource-results/probe.log | cut -c1-4200
+      - name: Upload screenshots and structured metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-fcp-resource-dequeue-ab
+          path: resource-results/
+          retention-days: 10
+          if-no-files-found: warn
