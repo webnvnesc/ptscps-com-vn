@@ -1,0 +1,46 @@
+name: PTSCPS SR7 banner vs intro LCP timing diagnostic (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-slider-lcp-diagnostic.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [412, 1440]
+        throttle: [0, 1]
+    env:
+      TEST_WIDTH: ${{ matrix.width }}
+      TEST_THROTTLE: ${{ matrix.throttle }}
+      TEST_CYCLES: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Capture LCP entries, slider image network and DOM
+        shell: bash
+        run: |
+          node --check scripts/ptscps-slider-lcp-diagnostic.cjs
+          node scripts/ptscps-slider-lcp-diagnostic.cjs > slider-lcp.log 2>&1 || { tail -n 25 slider-lcp.log; exit 1; }
+          grep '^CASE ' slider-lcp.log | cut -c1-18000
+      - name: Upload visual and timeline evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-slider-lcp-${{ matrix.width }}-${{ matrix.throttle }}
+          path: |
+            slider-lcp-audit-${{ matrix.width }}-*/
+            slider-lcp.log
+          retention-days: 10
+          if-no-files-found: warn
