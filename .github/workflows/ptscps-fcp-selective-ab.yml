@@ -1,0 +1,117 @@
+name: PTSCPS FCP selective CSS A/B (browser only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-fcp-selective-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install browser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare selective CSS loading and visual regressions
+        shell: bash
+        run: |
+          mkdir -p fcp-ab
+          cat > selective.cjs <<'NODE'
+          const {chromium}=require('playwright');
+          const fs=require('fs');
+          const url='https://ptscps.com.vn/';
+          const scenarios=[
+            {name:'baseline_1',match:[]},
+            {name:'roboto_async',match:['/google-fonts/css/roboto.css','/google-fonts/css/robotoslab.css']},
+            {name:'offscreen_css_async',match:['/assets/ilightbox/dark-skin/skin.css','/assets/css/single.min.css','/assets/css/widgets.min.css']},
+            {name:'roboto_plus_offscreen_async',match:['/google-fonts/css/roboto.css','/google-fonts/css/robotoslab.css','/assets/ilightbox/dark-skin/skin.css','/assets/css/single.min.css','/assets/css/widgets.min.css']},
+            {name:'baseline_2',match:[]},
+          ];
+          function transform(html,match){
+            let matched=[];
+            if(match.length===0)return {html,matched};
+            const out=html.replace(/<link\b[^>]*>/gi,tag=>{
+              if(!/rel\s*=\s*["']stylesheet["']/i.test(tag))return tag;
+              const m=match.find(x=>tag.includes(x));
+              if(!m)return tag;
+              matched.push(m);
+              const noMedia=tag.replace(/\s+media\s*=\s*(["']).*?\1/ig,'');
+              return noMedia.replace(/\/?>$/,' media="print" onload="this.media='+"'all'"+'" />');
+            });
+            return {html:out,matched};
+          }
+          async function main(){
+            const browser=await chromium.launch({headless:true});
+            for(const cfg of scenarios){
+              const context=await browser.newContext({viewport:{width:412,height:823},deviceScaleFactor:1.75,isMobile:true,hasTouch:true,locale:'vi-VN'});
+              const page=await context.newPage();
+              let matched=[],firstView=null,errors=[];
+              page.on('pageerror',x=>errors.push(x.message.slice(0,180)));
+              page.on('console',x=>{if(x.type()==='error')errors.push(x.text().slice(0,180))});
+              if(cfg.match.length){
+                await page.route(url,async route=>{
+                  const response=await route.fetch();
+                  const x=transform(await response.text(),cfg.match);
+                  matched=x.matched;
+                  await route.fulfill({response,body:x.html});
+                });
+              }
+              await page.addInitScript(()=>{
+                window.__shifts=[];
+                try{new PerformanceObserver(l=>{for(const e of l.getEntries())if(!e.hadRecentInput)window.__shifts.push({v:e.value,t:e.startTime})}).observe({type:'layout-shift',buffered:true})}catch(e){}
+              });
+              const cdp=await context.newCDPSession(page);
+              await cdp.send('Network.enable');
+              await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:150,downloadThroughput:205*1024,uploadThroughput:90*1024});
+              await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+              try {
+                const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:85000});
+                const getGeom=async()=>await page.evaluate(()=>{
+                  const sel=q=>{const e=document.querySelector(q);if(!e)return null;const r=e.getBoundingClientRect(),c=getComputedStyle(e);return {x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.width),h:Math.round(r.height),font:c.fontFamily,color:c.color,display:c.display}};
+                  const nav=performance.getEntriesByType('navigation')[0],paint=performance.getEntriesByType('paint');
+                  return {fcp:Math.round(paint.find(x=>x.name==='first-contentful-paint')?.startTime||0),
+                    ttfb:Math.round(nav.responseStart),cls:window.__shifts.reduce((s,e)=>s+e.v,0),
+                    body:sel('body'),header:sel('#main-nav'),intro:sel('.elementor-element-920fc5e'),
+                    slider:sel('.elementor-element-77137dd'),
+                    fontStatus:document.fonts.status,
+                    matchedMedia:[...document.querySelectorAll('link[rel=stylesheet]')].filter(x=>cfgCannotUse.includes(''))};
+                });
+                // Use a lightweight DOM checkpoint independent of the scenario.
+                await page.waitForTimeout(8500);
+                const data=await page.evaluate(()=>{
+                  const nav=performance.getEntriesByType('navigation')[0],paint=performance.getEntriesByType('paint');
+                  const get=q=>{const e=document.querySelector(q);if(!e)return null;const r=e.getBoundingClientRect(),c=getComputedStyle(e);return {x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.width),h:Math.round(r.height),font:c.fontFamily}};
+                  return {fcp:Math.round(paint.find(x=>x.name==='first-contentful-paint')?.startTime||0),
+                    ttfb:Math.round(nav.responseStart),cls:window.__shifts.reduce((s,e)=>s+e.v,0),
+                    intro:get('.elementor-element-920fc5e'),slider:get('.elementor-element-77137dd'),
+                    font:document.fonts.status,
+                    lateMedia:[...document.querySelectorAll('link[rel=stylesheet]')].filter(x=>x.media==='print').map(x=>x.href.replace(location.origin,''))};
+                });
+                await page.screenshot({path:'fcp-ab/'+cfg.name+'.png',animations:'disabled'});
+                const result={scenario:cfg.name,matched,http:response.status(),...data,errors:errors.slice(0,10)};
+                fs.writeFileSync('fcp-ab/'+cfg.name+'.json',JSON.stringify(result,null,2));
+                console.log('RESULT',JSON.stringify(result));
+              }catch(e){console.log('ERROR',cfg.name,String(e.stack||e).slice(0,650));process.exitCode=1}
+              await context.close();
+            }
+            await browser.close();
+          }
+          main().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
+          node --check selective.cjs
+          node selective.cjs > fcp-ab/results.log 2>&1 || { tail -n 25 fcp-ab/results.log; exit 1; }
+          grep -E '^(RESULT|ERROR)' fcp-ab/results.log | cut -c1-5000
+      - name: Upload measurements and visual screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-fcp-selective-css-ab
+          path: fcp-ab/
+          retention-days: 10
+          if-no-files-found: warn
