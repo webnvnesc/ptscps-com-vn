@@ -16,6 +16,59 @@ try{
     await page.locator('#user_pass').fill(pass);
     await Promise.allSettled([page.waitForNavigation({waitUntil:'domcontentloaded',timeout:35000}),page.locator('#wp-submit').click()]);
   }
+  const dashboard=await page.goto(site+'/wp-admin/admin.php?page=revslider',{waitUntil:'domcontentloaded',timeout:70000});
+  await page.waitForTimeout(2000);
+  const targets=await page.evaluate(()=>{
+    const nodes=[...document.querySelectorAll('button,[role="button"],a')].filter(el=>/settings|optimization|smart loading|global/i.test(
+      (el.textContent||'').trim().slice(0,90)+' '+(el.getAttribute('aria-label')||'')+' '+(el.title||''))).slice(0,65);
+    return nodes.map(el=>({tag:el.tagName,text:el.textContent?.trim().slice(0,80),aria:el.getAttribute('aria-label'),
+     title:el.getAttribute('title'),class:String(el.className||'').slice(0,130),visible:el.getBoundingClientRect().width>0&&el.getBoundingClientRect().height>0}));
+  });
+  console.log('SR7_SETTINGS_BUTTONS '+JSON.stringify({items:targets}).slice(0,16000));
+  const candidates=page.getByRole('button',{name:/^settings$/i});
+  let settingsOpened=false;
+  if(await candidates.count()){
+    for(let index=0;index<await candidates.count();index++){
+      try{if(await candidates.nth(index).isVisible()){
+        await candidates.nth(index).click({timeout:12000});settingsOpened=true;break;
+      }}catch(e){}
+    }
+  }
+  if(!settingsOpened){
+    const el=page.locator('button:has-text("Settings"),[role="button"]:has-text("Settings")').first();
+    try{if(await el.count()){await el.click({timeout:12000});settingsOpened=true;}}catch(e){}
+  }
+  await page.waitForTimeout(1500);
+  console.log('SR7_SETTINGS_OPEN '+JSON.stringify({clicked:settingsOpened,
+    tabs:await page.evaluate(()=>[...document.querySelectorAll('button,[role="tab"],a')].filter(e=>
+      /optimization|general|settings/i.test(e.textContent?.trim()||'')&&e.getBoundingClientRect().width>0)
+      .slice(0,50).map(e=>({tag:e.tagName,text:e.textContent?.trim().slice(0,100),aria:e.getAttribute('aria-label'),
+       class:String(e.className||'').slice(0,100)})))}));
+  const opt=page.getByText('Optimization',{exact:true});
+  if(await opt.count()){
+    try{await opt.last().click({timeout:12000});await page.waitForTimeout(1200);}catch(e){
+      console.log('SR7_OPT_CLICK_ERROR '+String(e.message||e).slice(0,200));
+    }
+  }
+  const optState=await page.evaluate(()=>{
+    const text=document.body.innerText||'';
+    const names=['SR7 Data Load Method','Smart Loading','Preloading','On Demand Loading','SR7 Feeds Load Method'];
+    const excerpts=[];
+    for(const term of names){let i=-1,n=0;while((i=text.toLowerCase().indexOf(term.toLowerCase(),i+1))>=0&&n++<6){
+      excerpts.push({term,context:text.slice(Math.max(0,i-100),i+220)})}}
+    const selects=[...document.querySelectorAll('select,[role="combobox"],[role="listbox"],input[type="radio"]')].slice(0,90).map(el=>({
+      tag:el.tagName,id:el.id||null,role:el.getAttribute('role'),aria:el.getAttribute('aria-label'),
+      value:(el.value||'').slice(0,150),display:getComputedStyle(el).display,
+      context:el.parentElement?.textContent?.trim().slice(0,220)||''
+    }));
+    const controls=[...document.querySelectorAll('label,button,[role="radio"],[role="option"]')]
+       .filter(e=>/smart loading|preloading|on demand|data load method/i.test(e.textContent?.trim()||''))
+       .slice(0,50).map(e=>({tag:e.tagName,text:e.textContent?.trim().slice(0,130),
+         selected:e.getAttribute('aria-selected'),checked:e.getAttribute('aria-checked'),
+         cls:String(e.className||'').slice(0,160),outer:e.outerHTML.slice(0,350)}));
+    return {path:location.pathname+location.search,excerpts:excerpts.slice(0,30),selects,controls};
+  });
+  console.log('SR7_SELECTED_LOADING '+JSON.stringify(optState).slice(0,26000));
   const urls=[
    '/wp-admin/admin.php?page=revslider',
    '/wp-admin/admin.php?page=revslider&view=global_settings',
