@@ -48,7 +48,7 @@ jobs:
               try:
                   ftp.retrbinary('RETR '+root+'/'+path,collect)
                   return data.decode('utf-8','replace')
-              except (ftplib.all_errors,ValueError):
+              except ftplib.all_errors + (ValueError,):
                   return ''
           def tree(path,depth=0,maxdepth=2,cap=180):
               try: items=listing(root+('/'+path if path else ''))
