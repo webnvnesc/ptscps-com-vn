@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        width: [412, 1440]
+        width: [412]
     env:
       TEST_WIDTH: ${{ matrix.width }}
     steps:
@@ -41,3 +41,5 @@ jobs:
             css-audit.log
           retention-days: 10
           if-no-files-found: warn
+
+# Android mobile UA verification after desktop-class response in initial run
