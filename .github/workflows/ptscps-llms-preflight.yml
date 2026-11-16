@@ -1,0 +1,33 @@
+name: PTSCPS llms.txt canonical URLs and root state (read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-llms-preflight.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate preflight
+        run: python3 -m py_compile scripts/ptscps-llms-preflight.py
+      - name: Verify canonical website pages and existing llms file
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-llms-preflight.py > llms-preflight.log 2>&1 || { tail -n 35 llms-preflight.log; exit 1; }
+          grep -E '^(PAGE |PAGE_ERROR |ROOT_LLMS |PREFLIGHT_SUMMARY )' llms-preflight.log | cut -c1-2400
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-llms-preflight
+          path: llms-preflight.log
+          retention-days: 10
+          if-no-files-found: warn
