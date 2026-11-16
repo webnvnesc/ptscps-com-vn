@@ -1,0 +1,68 @@
+name: PTSCPS deploy safe image lazy loading (MU plugin)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-deploy-image-lazy.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate isolated plugin before production
+        shell: bash
+        run: |
+          php -l deploy/ptscps-offscreen-images.php
+          python3 -m py_compile scripts/deploy-ptscps-offscreen-images.py
+          test -s deploy/ptscps-offscreen-images.php
+      - name: Install verified plugin through encrypted FTPS
+        shell: bash
+        run: python3 -u scripts/deploy-ptscps-offscreen-images.py
+      - name: Verify anonymous homepage and archive HTML without stale cache
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import time,re,urllib.request,uuid
+          site='https://ptscps.com.vn'
+          def check(path):
+              u=site+path+('?ptscps_image_lazy_audit=' if '?' not in path else '&ptscps_image_lazy_audit=')+uuid.uuid4().hex
+              req=urllib.request.Request(u,headers={'User-Agent':'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/154 Mobile Safari/537.36','Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req,timeout=50) as r:
+                  body=r.read().decode('utf-8','replace')
+                  status=r.status
+              return status,body
+          for path in ('/', '/c/hoat-dong-cua-cong-ty'):
+              status,html=check(path)
+              imgs=re.findall(r'<img\b[^>]*>',html,re.I)
+              if path=='/':
+                  target=[i for i in imgs if 'swiper-slide-image' in i]
+                  lazy=sum('loading="lazy"' in i for i in target)
+                  resized=sum(('768x289' in i or '1024x354' in i) for i in target)
+                  print('HOME',status,'carousel_images',len(target),'lazy',lazy,'responsive_matches',resized,flush=True)
+                  if status!=200 or len(target)<15 or lazy<len(target) or resized<2:
+                      raise RuntimeError('Homepage image optimization not active or unexpected response')
+              else:
+                  target=[i for i in imgs if 'wp-post-image' in i and 'jannah-image-large' in i]
+                  lazy=sum('loading="lazy"' in i for i in target)
+                  print('ARCHIVE',status,'thumbnails',len(target),'lazy',lazy,'first_six_untouched',all('loading="lazy"' not in i for i in target[:6]),flush=True)
+                  if status!=200 or len(target)<10 or lazy<3 or any('loading="lazy"' in i for i in target[:6]):
+                      raise RuntimeError('Archive lazy loading not active or unexpected response')
+          PY
+      - name: Store previous installed plugin if replaced
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-offscreen-images-previous-plugin
+          path: ptscps-offscreen-images-before.php
+          retention-days: 30
+          if-no-files-found: ignore
