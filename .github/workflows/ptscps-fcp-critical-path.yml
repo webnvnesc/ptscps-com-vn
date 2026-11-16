@@ -1,0 +1,143 @@
+name: PTSCPS FCP critical path and safe A/B experiments (no site writes)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-fcp-critical-path.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare isolated FCP improvements
+        shell: bash
+        run: |
+          mkdir -p fcp-investigation
+          cat > fcp-investigation.cjs <<'NODE'
+          const {chromium}=require('playwright');
+          const fs=require('fs');
+          const url='https://ptscps.com.vn/';
+          const scenarios=[
+            {name:'baseline_1',type:'none'},
+            {name:'baseline_2',type:'none'},
+            {name:'fontawesome_async',type:'style',match:'fontawesome.css'},
+            {name:'slider_css_async',type:'style',match:'/sr7.css'},
+            {name:'jquery_defer',type:'script',match:'/jquery.min.js'},
+            {name:'font_and_slider_async',type:'styles',match:['fontawesome.css','/sr7.css']},
+          ];
+          function patchHTML(html,scenario) {
+            if(scenario.type==='none')return {html,count:0};
+            let count=0;
+            const patterns=Array.isArray(scenario.match)?scenario.match:[scenario.match];
+            if(['style','styles'].includes(scenario.type)){
+              html=html.replace(/<link\\b[^>]*>/gi,tag=>{
+                if(!/rel\\s*=\\s*["']?stylesheet/i.test(tag))return tag;
+                if(!patterns.some(p=>tag.includes(p)))return tag;
+                count++;
+                return tag.replace(/\\smedia\\s*=\\s*(["']).*?\\1/gi,'')
+                  .replace(/>$/," media=\"print\" onload=\"this.media='all'\" />");
+              });
+            }else if(scenario.type==='script'){
+              html=html.replace(/<script\\b[^>]*>/gi,tag=>{
+                if(!patterns.some(p=>tag.includes(p)))return tag;
+                count++;
+                return tag.replace(/>$/,' defer>');
+              });
+            }
+            return {html,count};
+          }
+          async function main(){
+            const browser=await chromium.launch({headless:true});
+            for(const cfg of scenarios){
+              const context=await browser.newContext({viewport:{width:412,height:823},isMobile:true,hasTouch:true,deviceScaleFactor:1.75,locale:'vi-VN'});
+              const page=await context.newPage();
+              const issues=[];
+              let replaced=0,docBytes=0;
+              page.on('pageerror',e=>issues.push(String(e.message).slice(0,240)));
+              page.on('console',m=>{if(m.type()==='error')issues.push('console:'+m.text().slice(0,150))});
+              if(cfg.type!=='none'){
+                await page.route(url,async route=>{
+                  const response=await route.fetch();
+                  const raw=await response.text();
+                  docBytes=raw.length;
+                  const patched=patchHTML(raw,cfg);
+                  replaced=patched.count;
+                  await route.fulfill({response,body:patched.html});
+                });
+              }
+              await page.addInitScript(()=>{
+                window.__paint=[];
+                try{new PerformanceObserver(l=>{for(const e of l.getEntries())window.__paint.push({name:e.name,t:e.startTime})}).observe({type:'paint',buffered:true});}catch(e){}
+                window.__ls=[];
+                try{new PerformanceObserver(l=>{for(const e of l.getEntries())if(!e.hadRecentInput)window.__ls.push({t:e.startTime,v:e.value})}).observe({type:'layout-shift',buffered:true});}catch(e){}
+              });
+              const cdp=await context.newCDPSession(page);
+              await cdp.send('Network.enable');
+              await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:150,downloadThroughput:210*1024,uploadThroughput:110*1024});
+              await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
+              try {
+                const resp=await page.goto(url,{waitUntil:'domcontentloaded',timeout:80000});
+                await page.waitForTimeout(7600);
+                const data=await page.evaluate(()=>{
+                  const nav=performance.getEntriesByType('navigation')[0]||{};
+                  const paint=performance.getEntriesByType('paint')||[];
+                  const res=(performance.getEntriesByType('resource')||[]).map(r=>({
+                    url:r.name.replace(location.origin,'').replace(/\\?.*/,''),
+                    initiator:r.initiatorType,start:Math.round(r.startTime),
+                    end:Math.round(r.responseEnd),dur:Math.round(r.duration),
+                    size:r.transferSize,decoded:r.decodedBodySize
+                  })).filter(r=>/\\.(?:css|js|woff|woff2|ttf)(?:$|\\?)/i.test(r.url));
+                  const geom=(sel)=>{const e=document.querySelector(sel);if(!e)return null;const r=e.getBoundingClientRect();const c=getComputedStyle(e);return {x:Math.round(r.x),y:Math.round(r.y),h:Math.round(r.height),w:Math.round(r.width),display:c.display,opacity:c.opacity,font:c.fontFamily}};
+                  const head=[...document.head.querySelectorAll('link[rel=stylesheet],script[src]')].map((x,i)=>({tag:x.tagName,src:(x.href||x.src||'').replace(location.origin,'').slice(0,190),media:x.media,async:x.async,defer:x.defer})).filter(x=>x.src);
+                  return {
+                    timing:{ttfb:Math.round(nav.responseStart||0),dom:Math.round(nav.domContentLoadedEventEnd||0),load:Math.round(nav.loadEventEnd||0),
+                      fcp:Math.round(paint.find(x=>x.name==='first-contentful-paint')?.startTime||0),
+                      fp:Math.round(paint.find(x=>x.name==='first-paint')?.startTime||0)},
+                    cls:window.__ls.reduce((sum,e)=>sum+e.v,0),
+                    geometry:{header:geom('header'),nav:geom('#main-nav'),logo:geom('.logo'),slider:geom('.elementor-element-77137dd'),intro:geom('.elementor-element-920fc5e'),
+                      body:geom('body'),search:geom('input[type=search]')},
+                    head,resources:res, fonts:{status:document.fonts.status,size:document.fonts.size},
+                    text:document.querySelector('.elementor-element-920fc5e')?.textContent?.trim().slice(0,100)
+                  };
+                });
+                const summary={scenario:cfg.name,variant:cfg.type,match:cfg.match||null,replaced,docBytes,http:resp.status(),...data,errors:issues.slice(0,15)};
+                fs.writeFileSync('fcp-investigation/'+cfg.name+'.json',JSON.stringify(summary,null,2));
+                console.log('RESULT',JSON.stringify({
+                  scenario:cfg.name,replaced,http:resp.status(),timing:data.timing,cls:+data.cls.toFixed(6),
+                  fonts:data.fonts,geometry:data.geometry,
+                  errors:issues.slice(0,4),headCount:data.head.length,cssResources:data.resources.filter(x=>x.url.includes('.css')).length
+                }));
+                if(cfg.name==='baseline_1'){
+                  console.log('HEAD',JSON.stringify(data.head));
+                  console.log('RESOURCE',JSON.stringify(data.resources.filter(x=>x.url.includes('.css')||x.url.includes('.js')).sort((a,b)=>a.end-b.end).slice(0,85)));
+                }
+                await page.screenshot({path:'fcp-investigation/'+cfg.name+'.png',animations:'disabled'});
+              }catch(e){console.log('ERROR',cfg.name,String(e.stack||e).slice(0,800));process.exitCode=1}
+              await context.close();
+            }
+            await browser.close();
+          }
+          main().catch(e=>{console.error(e);process.exitCode=1;});
+          NODE
+          node --check fcp-investigation.cjs
+          node fcp-investigation.cjs > fcp-investigation/results.log 2>&1 || { tail -n 35 fcp-investigation/results.log; exit 1; }
+          grep -E '^(RESULT|HEAD|RESOURCE|ERROR)' fcp-investigation/results.log | cut -c1-14000
+      - name: Retain trace and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-fcp-critical-path-study
+          path: fcp-investigation/
+          retention-days: 7
+          if-no-files-found: warn
