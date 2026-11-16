@@ -25,7 +25,7 @@ async function main(){
     const st=logo&&getComputedStyle(logo),ss=search&&getComputedStyle(search);
     return {logo:bounds(logo),logoMaxWidth:st?.maxWidth,search:bounds(search),searchDisplay:ss?.display,
      searchCount:fields.length,header:bounds(document.querySelector('#theme-header')),
-     css:Jannah=[...document.styleSheets].filter(x=>/jannah/.test(x.href||'')).length};
+     css:[...document.styleSheets].filter(x=>/jannah/.test(x.href||'')).length};
   });
   console.log('CSS_REPRO '+JSON.stringify({cssMode,status:response.status(),blocked:bad,metrics:q,errs}));
   await p.screenshot({path:'/tmp/header-repro-'+cssMode+'.png',fullPage:false}).catch(()=>{});
