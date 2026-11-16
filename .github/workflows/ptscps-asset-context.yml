@@ -1,0 +1,46 @@
+name: PTSCPS asset enqueue source context read-only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-asset-context.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Review Jannah and Elementor resource registration contexts
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-asset-context.py > context.log 2>&1 || { tail -n 15 context.log; exit 1; }
+          python3 - <<'PY'
+          import json
+          from collections import defaultdict
+          files=defaultdict(list)
+          for line in open('context.log'):
+              if line.startswith("SOURCE "):
+                  try:
+                      item=json.loads(line[7:])
+                      files[item["file"]].append(item)
+                  except Exception: pass
+          for path,rows in files.items():
+              print("FILE",path)
+              for row in rows:
+                  if any(k in row["content"].lower() for k in ["enqueue","register","css","script","asset","style","minify","combine","font","cache"]):
+                      print(row["line"],row["content"])
+          PY
+      - name: Store source context
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-asset-context
+          path: context.log
+          retention-days: 5
+          if-no-files-found: warn
