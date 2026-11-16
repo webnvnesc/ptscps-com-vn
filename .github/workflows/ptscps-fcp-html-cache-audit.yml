@@ -1,0 +1,34 @@
+name: PTSCPS FCP anonymous HTML cache and TTFB audit (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-fcp-html-cache-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect anonymous HTML responses and FTPS cache metadata
+        shell: bash
+        run: |
+          python3 -m py_compile scripts/ptscps-fcp-html-cache-audit.py
+          python3 -u scripts/ptscps-fcp-html-cache-audit.py > html-cache.log 2>&1 || { tail -n 25 html-cache.log; exit 1; }
+          grep -E '^(HTTP|FTPS_METADATA)' html-cache.log | cut -c1-3000
+      - name: Archive measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-fcp-anonymous-html-cache-audit
+          path: |
+            html-cache-results/
+            html-cache.log
+          retention-days: 10
+          if-no-files-found: warn
