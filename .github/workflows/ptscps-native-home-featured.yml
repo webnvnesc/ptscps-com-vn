@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/ptscps-native-home-featured.yml"
+      - "scripts/ptscps-toggle-home-featured.cjs"
   workflow_dispatch:
 permissions:
   contents: read
