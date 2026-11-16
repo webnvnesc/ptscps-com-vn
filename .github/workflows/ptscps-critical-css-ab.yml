@@ -1,0 +1,36 @@
+name: PTSCPS actual critical CSS browser-only A/B
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-critical-css-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  experiment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser and CSS parser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright postcss
+          npx playwright install --with-deps chromium
+      - name: Extract first-render CSS and compare browser-only candidates
+        shell: bash
+        run: |
+          node --check scripts/critical-css-probe.cjs
+          node scripts/critical-css-probe.cjs > critical-output.log 2>&1 || { tail -n 70 critical-output.log; exit 1; }
+          grep -E '^(CRITICAL|RESULT|MISSING|SKIPPED|FATAL)' critical-output.log | cut -c1-2600
+          cp critical-output.log critical-results/
+      - name: Preserve screenshots and metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-critical-css-ab
+          path: critical-results/
+          retention-days: 10
+          if-no-files-found: warn
