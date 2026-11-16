@@ -1,0 +1,31 @@
+name: PTSCPS SR7 FastPath preflight (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-fastpath-preflight.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect rewrite rules and slider save hooks
+        shell: bash
+        run: |
+          python3 -m py_compile scripts/ptscps-sr7-fastpath-preflight.py
+          python3 -u scripts/ptscps-sr7-fastpath-preflight.py > sr7-fastpath-preflight.log 2>&1 || { tail -n 25 sr7-fastpath-preflight.log; exit 1; }
+          grep -E '^(HTACCESS |SOURCE |REVSLIDER_DIR |PAYLOAD |PAYLOAD_ERROR |DIR )' sr7-fastpath-preflight.log | cut -c1-17000
+      - name: Archive inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-fastpath-preflight
+          path: sr7-fastpath-preflight.log
+          retention-days: 10
