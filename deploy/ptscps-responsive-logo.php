@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS Responsive Jannah Logo
  * Description: Add responsive image candidates only to the native Jannah header logo.
- * Version: 1.0.0
+ * Version: 1.0.1
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -69,6 +69,29 @@ if ( ! function_exists( 'ptscps_responsive_logo_replace' ) ) {
             $html,
             1
         );
+        if ( is_string( $result ) ) {
+            // Native Jannah <picture> places a <source> before <img>. Browsers
+            // select source[srcset] first; updating <img> alone wastes bandwidth.
+            $candidates = $small . ' 320w, ' . $medium . ' 640w, ' . $large . ' 1024w';
+            $result = preg_replace_callback(
+                '~<source\b[^>]*\bclass\s*=\s*["\'][^"\']*\btie-logo-source-default\b[^"\']*["\'][^>]*>~i',
+                static function ( $matches ) use ( $original, $candidates ) {
+                    $source = $matches[0];
+                    if ( strpos( $source, $original ) === false ) {
+                        return $source;
+                    }
+                    $source = preg_replace( '~\s(?:srcset|sizes)\s*=\s*(?:"[^"]*"|\'[^\']*\')~i', '', $source );
+                    return preg_replace(
+                        '~\s*/?>$~',
+                        ' srcset="' . esc_attr( $candidates ) . '" sizes="(max-width: 767px) 160px, 295px" />',
+                        $source,
+                        1
+                    );
+                },
+                $result,
+                1
+            );
+        }
         echo is_string( $result ) ? $result : $html;
     }
 }
