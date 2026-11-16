@@ -1,0 +1,57 @@
+name: PTSCPS deploy scoped Accessibility and SEO improvements
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-deploy-a11y-seo.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint isolated WordPress plugin and deploy tools
+        shell: bash
+        run: |
+          php -l deploy/ptscps-a11y-seo.php
+          python3 -m py_compile scripts/deploy-ptscps-a11y-seo.py scripts/ptscps-purge-a11y-seo-pages.py
+          node --check scripts/ptscps-a11y-seo-postdeploy.cjs
+          test -s deploy/ptscps-a11y-seo.php
+      - name: Deploy scoped MU plugin with checksum and rollback
+        run: python3 -u scripts/deploy-ptscps-a11y-seo.py
+      - name: Invalidate only targeted public HTML cache
+        run: python3 -u scripts/ptscps-purge-a11y-seo-pages.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright and axe-core
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright @axe-core/playwright
+          npx playwright install --with-deps chromium
+      - name: Verify Accessibility and SEO as anonymous desktop visitor
+        run: node scripts/ptscps-a11y-seo-postdeploy.cjs
+      - name: Verify Accessibility and SEO as anonymous mobile visitor
+        env:
+          QA_MOBILE: '1'
+        run: node scripts/ptscps-a11y-seo-postdeploy.cjs
+      - name: Store accessibility reports and plugin rollback
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-a11y-seo-deploy-verification
+          path: |
+            a11y-seo-postdeploy-*/
+            ptscps-a11y-seo-before.php
+          if-no-files-found: ignore
+          retention-days: 30
