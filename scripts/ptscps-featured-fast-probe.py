@@ -6,7 +6,7 @@ server=os.environ["FTP_SERVER"]; u=urlsplit(server if "://" in server else "//"+
 f=ftplib.FTP_TLS(timeout=20);f.connect(u.hostname,u.port or 21,timeout=20);f.auth();f.login(os.environ["FTP_USERNAME"],os.environ["FTP_PASSWORD"]);f.prot_p()
 root="/domains/ptscps.com.vn/public_html/wp-content/themes/"
 base=root+"jannah/"
-candidates=["page.php","single.php","templates/single-post.php","templates/single-post/featured.php","templates/single-post/featured-image.php","templates/single-post/post-featured.php","templates/single-post/featured-media.php","templates/single-post/featured-area.php","templates/post-layouts/featured.php","framework/parts/post-components.php","framework/parts/single.php","inc/theme-setup.php","functions.php"]
+candidates=["page.php","single.php","templates/single-post.php","templates/single-post/featured.php","templates/single-post/content.php","templates/featured.php","templates/single-post/featured-image.php","templates/single-post/post-featured.php","templates/single-post/featured-media.php","templates/single-post/featured-area.php","templates/post-layouts/featured.php","framework/parts/post-components.php","framework/parts/single.php","inc/theme-setup.php","functions.php"]
 def fetch(p):
  chunks=[];size=0
  def app(b):
@@ -28,6 +28,12 @@ try:
  for rel in candidates:
   txt=fetch(base+rel)
   if not txt:continue
+  if rel in ("templates/single-post/featured.php","templates/single-post/content.php","templates/featured.php"):
+   all_lines=txt.splitlines()
+   for i,src in enumerate(all_lines):
+    if rel.endswith("featured.php") and i>=175:break
+    if re.search(r"password|secret|token|api.?key|license.?key",src,re.I):continue
+    print("SOURCE_LINE",json.dumps({"file":rel,"n":i+1,"code":src[:260]},ensure_ascii=False),flush=True)
   terms=["single-featured-image","featured-area","hide_featured","show_featured","get_the_post_thumbnail","the_post_thumbnail","get_template_part"]
   lines=txt.splitlines()
   picks=[i for i,x in enumerate(lines) if any(term.lower() in x.lower() for term in terms)]
