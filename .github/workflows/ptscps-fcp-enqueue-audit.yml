@@ -1,0 +1,44 @@
+name: PTSCPS read-only theme asset loader audit
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-fcp-enqueue-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read selected WordPress asset enqueue source from FTPS
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-fcp-enqueue-audit.py > enqueue.log 2>&1 || { tail -n 40 enqueue.log; exit 1; }
+          python3 - <<'PY'
+          import json
+          with open('enqueue.log') as f:
+              for line in f:
+                  if line.startswith('MATCHES '):
+                      try:
+                          r=json.loads(line[8:])
+                          print('FILE',r['path'],'MATCH_COUNT',r['total'])
+                          for snippet in r['snippets'][:12]:
+                              print('  LINE',snippet['line'],snippet['code'][:180])
+                      except Exception: pass
+                  elif line.startswith('AUDIT_DONE ') or line.startswith('CANDIDATE_PATHS '):
+                      print(line[:2000].strip())
+          PY
+      - name: Upload audit logs (source excerpts only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-fcp-enqueue-audit
+          path: enqueue.log
+          retention-days: 7
+          if-no-files-found: warn
