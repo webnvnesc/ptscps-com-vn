@@ -1,0 +1,35 @@
+name: PTSCPS Jannah CSS reduction feasibility (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-style-minify-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evaluate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install parsers and optimizers
+        run: npm install --no-save --no-audit --no-fund postcss cssnano lightningcss
+      - name: Measure main CSS safe minification potential
+        shell: bash
+        run: |
+          node --check scripts/ptscps-style-css-minify-audit.cjs
+          node scripts/ptscps-style-css-minify-audit.cjs > minify.log 2>&1 || { tail -n 40 minify.log; exit 1; }
+          grep -E '^(VARIANT|CSS_STRUCTURE|HASHES)' minify.log
+      - name: Save size analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-jannah-style-reduction-analysis
+          path: |
+            style-analysis/
+            minify.log
+          retention-days: 10
+          if-no-files-found: warn
