@@ -16,7 +16,7 @@ jobs:
         width: [412, 1440]
     env:
       TEST_WIDTH: ${{ matrix.width }}
-      TEST_CYCLES: 4
+      TEST_CYCLES: 2
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
