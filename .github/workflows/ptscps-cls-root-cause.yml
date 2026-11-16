@@ -1,0 +1,124 @@
+name: PTSCPS CLS root-cause deep inspection (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-cls-root-cause.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    name: Read live child theme hooks and CSS via secure FTPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      FTP_DIRECTORY: /domains/ptscps.com.vn/public_html
+    steps:
+      - name: Analyze relevant styling (read only)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, ftplib, io, re, json
+          from urllib.parse import urlsplit
+          p=urlsplit(os.environ['FTP_SERVER'] if '://' in os.environ['FTP_SERVER'] else '//'+os.environ['FTP_SERVER'])
+          f=ftplib.FTP_TLS()
+          f.connect(p.hostname,p.port or 21,timeout=15); f.auth(); f.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD']);f.prot_p()
+          root=os.environ['FTP_DIRECTORY']
+          for file in ('wp-content/themes/jannah-child/style.css','wp-content/themes/jannah-child/functions.php','wp-content/themes/jannah/style.css'):
+            try:
+              data=bytearray()
+              def append(chunk):
+                if len(data)+len(chunk)<65536:data.extend(chunk)
+                else:raise ValueError('too large')
+              f.retrbinary('RETR '+root+'/'+file,append)
+              s=data.decode('utf-8','replace')
+              print('FILE',file,'length',len(data))
+              if file.endswith('style.css'):
+                print('STYLE-SNIPPET',s[:6500])
+              else:
+                for line in s.splitlines():
+                  if re.search(r'wp_enqueue_|add_action|add_filter|revslider|slider|jannah|tie_|elementor',line,re.I):
+                    print('PHP-MATCH',line[:200])
+            except Exception as exc:print('UNAVAILABLE',file,type(exc).__name__)
+          f.quit()
+          PY
+  browser:
+    name: Track responsive slider intrinsic and initialized dimensions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect mobile initial layout and slider HTML
+        shell: bash
+        run: |
+          cat > deep-probe.cjs <<'NODE'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            for(const net of ['fast','slow']){
+              const context=await browser.newContext({viewport:{width:412,height:823},isMobile:true,hasTouch:true,deviceScaleFactor:1.75});
+              const page=await context.newPage();
+              if(net==='slow'){
+                const s=await context.newCDPSession(page);await s.send('Network.enable');
+                await s.send('Network.emulateNetworkConditions',{offline:false,latency:150,downloadThroughput:190*1024,uploadThroughput:90*1024});
+                await s.send('Emulation.setCPUThrottlingRate',{rate:4});
+              }
+              await page.addInitScript(()=>{
+                window.__shifts=[]; window.__snaps=[];
+                const find=(sel)=>document.querySelector(sel);
+                const digest=(el)=>{
+                  if(!el||!el.getBoundingClientRect)return null;
+                  const r=el.getBoundingClientRect(),style=getComputedStyle(el);
+                  return {tag:el.tagName,id:el.id,cls:String(el.className||'').slice(0,110),dataid:el.getAttribute('data-id'),x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.width),h:Math.round(r.height),inlineStyle:String(el.getAttribute('style')||'').slice(0,380),minHeight:style.minHeight,height:style.height,aspect:style.aspectRatio,display:style.display};
+                };
+                function snap(){
+                  if(!document.body)return;
+                  const slider=find('.elementor-element-77137dd');
+                  const intro=find('.elementor-element-920fc5e');
+                  const slideEls=slider?Array.from(slider.querySelectorAll('sr7-module-wrap, sr7-module, sr7-content, rs-module-wrap, rs-module, .rev_slider_wrapper, .rev_slider, .elementor-widget-shortcode, .elementor-shortcode')):[];
+                  const top=Array.from(document.querySelectorAll('.elementor-top-section')).slice(0,6);
+                  const ob={t:Math.round(performance.now()),header:digest(find('header')),intro:digest(intro),slider:digest(slider),slideEls:slideEls.slice(0,12).map(digest),sections:top.map(digest)};
+                  window.__snaps.push(ob);
+                }
+                setInterval(snap,50);
+                try{new PerformanceObserver(list=>{for(const e of list.getEntries())window.__shifts.push({t:Math.round(e.startTime),v:e.value,pre:(e.sources||[]).slice(0,4).map(s=>({who:digest(s.node),prev:s.previousRect,cur:s.currentRect}))})}).observe({type:'layout-shift',buffered:true});}catch(e){}
+              });
+              const response=await page.goto('https://ptscps.com.vn/',{waitUntil:'domcontentloaded',timeout:65000});
+              await page.waitForTimeout(6800);
+              const info=await page.evaluate(()=>{
+                const arr=window.__snaps||[];
+                const chosen=arr.filter((a,i)=>{
+                  if(i<2||i===arr.length-1||i%20===0)return true;
+                  if(i>0 && Math.abs((a.intro?.y||0)-(arr[i-1].intro?.y||0))>15)return true;
+                  return false
+                });
+                const sl=document.querySelector('.elementor-element-77137dd');
+                const intro=document.querySelector('.elementor-element-920fc5e');
+                return {origin:location.origin,
+                  shift:window.__shifts,snap:chosen,
+                  info:{sliderOuter:sl?.outerHTML.slice(0,4500),introOuter:intro?.outerHTML.slice(0,1000),
+                    bodyClass:document.body.className,
+                    childStyle:[...document.querySelectorAll('link[rel=stylesheet]')].map(x=>x.href).filter(x=>x.includes('jannah-child')),
+                    allSliders:[...document.querySelectorAll('sr7-module, sr7-module-wrap, rs-module, rs-module-wrap')].slice(0,6).map(x=>({tag:x.tagName,html:x.outerHTML.slice(0,2000)}))}
+                  }};
+              });
+              console.log('NET',net,'HTTP',response.status(),'SAMPLES',info.snap.length,'SHIFTS',info.shift.map(x=>({t:x.t,v:x.v,who:x.pre.map(z=>({tag:z.who?.tag,cls:z.who?.cls,y:z.who?.y}))})));
+              console.log('STATIC',net,JSON.stringify(info.info).slice(0,9000));
+              for(const s of info.snap)console.log('SAMPLE',net,JSON.stringify(s).slice(0,4000));
+              await context.close()
+            }
+            await browser.close()
+          })().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
+          node deep-probe.cjs > probe.log 2>&1
+          grep -E '^(NET|STATIC|SAMPLE)' probe.log | cut -c1-7000
