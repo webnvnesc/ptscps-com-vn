@@ -1,0 +1,64 @@
+name: PTSCPS production fix WP Super Cache desktop mobile separation
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-wpsc-mobile-fix-live.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium for native cache purge
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Validate deployment and QA scripts
+        run: |
+          python3 -m py_compile scripts/ptscps-wpsc-enable-mobile.py scripts/ptscps-wpsc-mobile-rollback.py scripts/ptscps-wpsc-mobile-live-qa.py
+          node --check scripts/ptscps-wpsc-clear-html-cache.cjs
+      - name: Enable native WP Super Cache mobile-aware filename logic with backup
+        run: |
+          python3 -u scripts/ptscps-wpsc-enable-mobile.py
+      - name: Purge stale shared HTML using WP Super Cache native admin action
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs > wpsc-native-purge.log 2>&1 || { tail -n 22 wpsc-native-purge.log; exit 1; }
+          grep '^WPSC_' wpsc-native-purge.log | cut -c1-1500
+      - name: Verify real cached plain URL desktop and mobile across 3 cycles
+        run: |
+          python3 -u scripts/ptscps-wpsc-mobile-live-qa.py | tee wpsc-device-qa.log
+          grep 'WPSC_DEVICE_SUMMARY' wpsc-device-qa.log
+      - name: Restore exact previous config if verification fails
+        if: failure()
+        run: |
+          python3 -u scripts/ptscps-wpsc-mobile-rollback.py
+      - name: Purge cache after rollback when needed
+        if: failure()
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs || true
+      - name: Archive original config and QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-wpsc-mobile-rollback-and-qa
+          path: |
+            wpsc-config-before-device-fix.php
+            wpsc-native-purge.log
+            wpsc-device-qa.log
+          retention-days: 30
+          if-no-files-found: ignore
