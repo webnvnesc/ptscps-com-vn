@@ -56,6 +56,22 @@ function ptscps_a11y_seo_html( $html ) {
         );
     }
 
+    // An image-only link to the contact map must have a screen-reader name.
+    if ( is_page( 'lien-he' ) && false !== strpos( $html, 'goo.gl/maps/' ) ) {
+        $html = preg_replace_callback(
+            '~<a\b[^>]*href\s*=\s*(["\'])https://goo\.gl/maps/[^"\']+\1[^>]*>\s*<img\b[^>]*>\s*</a>~i',
+            static function ( $m ) {
+                return preg_replace(
+                    '~<a\b~i',
+                    '<a aria-label="Xem bản đồ vị trí PTSC PPS"',
+                    $m[0],
+                    1
+                );
+            },
+            $html
+        );
+    }
+
     // Elementor Posts sometimes injects an invalid listitem role on <article>.
     // Keep the article landmark semantics and all its contents/classes unchanged.
     if ( false !== strpos( $html, 'elementor-post' ) ) {
@@ -170,6 +186,22 @@ add_action(
  * Change only the two failing backgrounds; leave geometry & Elementor data alone.
  *  #006ba4 / white has >=5.7:1 contrast. Dates #686868 / white >=5.5:1.
  */
+
+/** Visually hidden but correctly ordered H1 for two builder pages with no H1. */
+add_action(
+    'wp_body_open',
+    static function () {
+        if ( ! ptscps_a11y_seo_public_view() || ! ( is_page( 'dich-vu' ) || is_page( 'lien-he' ) ) ) {
+            return;
+        }
+        $title = get_the_title( get_queried_object_id() );
+        if ( $title ) {
+            echo '<h1 class="ptscps-accessible-page-title">' . esc_html( $title ) . '</h1>';
+        }
+    },
+    5
+);
+
 add_action(
     'wp_head',
     static function () {
@@ -177,12 +209,13 @@ add_action(
             return;
         }
         echo '<style id="ptscps-a11y-seo-style">'
+            . '.ptscps-accessible-page-title{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;}'
             . 'body.home .elementor-element-caa4541>.elementor-widget-container,'
             . 'body.home .elementor-element-f91c48b>.elementor-widget-container'
             . '{background-color:#006ba4!important;}'
             . '.elementor-post__meta-data .elementor-post-date{color:#686868!important;}'
-            . 'body.page .elementor-widget-image-box:not(.banner-home) .elementor-image-box-title a'
-            . '{color:#286d92;}'
+            . 'body.page:not(.home) .elementor-widget-image-box .elementor-image-box-title a'
+            . '{color:#286d92!important;}'
             . '</style>' . "\n";
     },
     30
