@@ -15,7 +15,7 @@ const targetPaths=[
   '/en'
 ];
 const widths=[1440,412];
-const isAPI=u=>{try{const p=new URL(u).pathname;return /\/wp-json(?:\/|$)|\/wp-admin\/admin-ajax\.php$|\/wp-admin\/admin-post\.php$|\/ajax(?:\/|$)/i.test(p) || /[?&](?:rest_route|wc-ajax)=/i.test(new URL(u).search)}catch{return false}};
+const isAPI=u=>{try{const dest=new URL(u);if(dest.origin!==origin)return false;const p=dest.pathname;return /\/wp-json(?:\/|$)|\/wp-admin\/admin-ajax\.php$|\/wp-admin\/admin-post\.php$|\/ajax(?:\/|$)/i.test(p) || /[?&](?:rest_route|wc-ajax)=/i.test(dest.search)}catch{return false}};
 const safeURL=x=>{
  try{const u=new URL(x);if(u.origin!==origin)return u.origin+u.pathname;
  // Do not print auth/session parameters.
