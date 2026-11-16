@@ -1,0 +1,44 @@
+name: PTSCPS Exo font and Jannah CSS LCP critical path (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-text-render-critical-path.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [412, 1440]
+    env:
+      TEST_WIDTH: ${{ matrix.width }}
+      TEST_CYCLES: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Measure LCP text, font completion and CSS render path
+        shell: bash
+        run: |
+          node --check scripts/ptscps-text-render-critical-path.cjs
+          node scripts/ptscps-text-render-critical-path.cjs > text-render.log 2>&1 || { tail -n 35 text-render.log; exit 1; }
+          grep '^RENDER_SUMMARY' text-render.log | cut -c1-10000
+      - name: Archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-text-render-${{ matrix.width }}
+          path: |
+            text-render.log
+            text-render-${{ matrix.width }}/
+          retention-days: 10
+          if-no-files-found: warn
