@@ -25,7 +25,7 @@ jobs:
         run: |
           node --check scripts/ptscps-js-demand-loading-audit.cjs
           node scripts/ptscps-js-demand-loading-audit.cjs > ptscps-js-audit.log 2>&1 || { tail -n 30 ptscps-js-audit.log; exit 1; }
-          grep -E '^JS_AUDIT_(PAGE|SUMMARY)' ptscps-js-audit.log | cut -c1-12000
+          grep -E '^JS_AUDIT_(PAGE|FILES|SUMMARY)' ptscps-js-audit.log | cut -c1-26000
       - name: Archive evidence
         if: always()
         uses: actions/upload-artifact@v4
