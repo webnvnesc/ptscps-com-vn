@@ -1,0 +1,50 @@
+name: PTSCPS native builder remove unused home featured image
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-native-home-featured.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  fix-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        shell: bash
+        run: |
+          python3 -m py_compile scripts/ptscps-purge-home-featured.py
+          node --check scripts/ptscps-toggle-home-featured.cjs
+      - name: Install controlled browser
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Set only Jannah Page 5 hide featured image and verify
+        shell: bash
+        run: |
+          node scripts/ptscps-toggle-home-featured.cjs > featured-fix.log 2>&1 || { grep -E 'NATIVE_OPTION_|CACHE_ACTION|PUBLIC_CHECK|FEATURED_NATIVE' featured-fix.log | cut -c1-5000 | tail -n 22; exit 1; }
+          grep -E 'NATIVE_OPTION_|CACHE_ACTION|PUBLIC_CHECK|FEATURED_NATIVE' featured-fix.log | cut -c1-5000
+      - name: Archive bounded QA status, not credentials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-native-featured-image-qa
+          path: featured-fix.log
+          retention-days: 10
+          if-no-files-found: warn
