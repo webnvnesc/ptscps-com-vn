@@ -35,6 +35,8 @@ const CASES=[
       const r=logo?.getBoundingClientRect();
       return {
        picture:logo?.parentElement?.tagName,
+       sourceSrcset:logo?.parentElement?.querySelector('source.tie-logo-source-default')?.getAttribute('srcset'),
+       sourceSizes:logo?.parentElement?.querySelector('source.tie-logo-source-default')?.getAttribute('sizes'),
        html:logo?.outerHTML.slice(0,1250),
        src:logo?.getAttribute('src'),
        srcset:logo?.getAttribute('srcset'),
@@ -54,8 +56,9 @@ const CASES=[
      const usedExpected=['logo-2024-320x107-ptscps.jpg','logo-2024-640x214-ptscps.jpg','logo-2024-1024x343.jpg'].includes(chosen);
      const srcsetAll=state.srcset?.includes('320w')&&state.srcset.includes('640w')&&state.srcset.includes('1024w');
      const safeOriginal=!requests.some(x=>x.image==='logo-2024.jpg');
+     const sourceResponsive=state.sourceSrcset?.includes('320w')&&state.sourceSrcset?.includes('640w')&&state.sourceSrcset?.includes('1024w')&&state.sourceSizes==='(max-width: 767px) 160px, 295px';
      const passed=resp.status()===200&&state.guard&&state.header&&state.picture==='PICTURE'&&
-       state.sizes==='(max-width: 767px) 160px, 295px'&&srcsetAll&&usedExpected&&
+       state.sizes==='(max-width: 767px) 160px, 295px'&&srcsetAll&&sourceResponsive&&usedExpected&&
        state.naturalWidth>0&&
        state.rendered[0]>0&&state.rendered[0]<=logoExpected[0]+2&&
        state.rendered[1]>0&&state.rendered[1]<=logoExpected[1]+2&&
