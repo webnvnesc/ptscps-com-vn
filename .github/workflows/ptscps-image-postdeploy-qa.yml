@@ -2,7 +2,9 @@ name: PTSCPS image optimization production QA (no writes)
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/ptscps-image-postdeploy-qa.yml"]
+    paths:
+      - ".github/workflows/ptscps-image-postdeploy-qa.yml"
+      - "scripts/ptscps-image-postdeploy-qa.cjs"
   workflow_dispatch:
 permissions:
   contents: read
