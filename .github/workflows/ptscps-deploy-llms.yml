@@ -1,0 +1,82 @@
+name: PTSCPS deploy verified root llms.txt
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-deploy-llms.yml"
+      - "deploy/llms.txt"
+      - "scripts/deploy-ptscps-llms.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate llms.txt UTF-8 and canonical references
+        shell: bash
+        run: |
+          python3 -m py_compile scripts/deploy-ptscps-llms.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path("deploy/llms.txt").read_text(encoding="utf-8")
+          assert s.startswith("# PTSC Production Services JSC")
+          urls=re.findall(r"\]\((https://[^)]+)\)",s)
+          assert len(urls)>=10
+          assert all(u.startswith("https://ptscps.com.vn/") for u in urls)
+          assert len(urls)==len(set(urls))
+          assert "# " in s and "## " in s
+          print("LLMS_VALID",len(urls),"canonical links",flush=True)
+          PY
+      - name: Install exactly root llms.txt by FTPS with checksum and rollback
+        run: python3 -u scripts/deploy-ptscps-llms.py
+      - name: Verify HTTPS public llms.txt is current plain text
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib,urllib.request,time,sys
+          from pathlib import Path
+          expected=Path("deploy/llms.txt").read_bytes()
+          url="https://ptscps.com.vn/llms.txt"
+          last=None
+          for attempt in range(4):
+              try:
+                  req=urllib.request.Request(url,headers={
+                      "User-Agent":"Mozilla/5.0 (compatible; PTSCPS-llms-QA/1.0)",
+                      "Cache-Control":"no-cache","Accept":"text/plain"})
+                  with urllib.request.urlopen(req,timeout=30) as resp:
+                      body=resp.read(25000)
+                      status=resp.status
+                      ctype=resp.headers.get("Content-Type","")
+                      final=resp.url
+                  if status==200 and final.rstrip("/")==url and body==expected and (
+                      "text/plain" in ctype or "text/markdown" in ctype or "application/octet-stream" in ctype
+                  ):
+                      print("PUBLIC_LLMS_PASS",url,"HTTP",status,"MIME",ctype,
+                            "SHA256",hashlib.sha256(body).hexdigest(),"BYTES",len(body))
+                      break
+                  last=f"status={status} mime={ctype} correct_content={body==expected} final={final}"
+              except Exception as ex:
+                  last=f"{type(ex).__name__}: {str(ex)[:150]}"
+              time.sleep(3)
+          else:
+              sys.exit("FAIL: public llms.txt not yet verified: "+str(last))
+          PY
+      - name: Save previous root llms version if replaced
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-llms-previous
+          path: llms-previous.txt
+          retention-days: 30
+          if-no-files-found: ignore
