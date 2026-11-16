@@ -36,7 +36,8 @@ jobs:
           python3 -u scripts/ptscps-header-logo-guard-deploy.py
       - name: Verify desktop mobile and missing Jannah CSS reproduction
         run: |
-          node scripts/ptscps-header-logo-guard-qa.cjs | tee logo-guard-qa.log
+          node scripts/ptscps-header-logo-guard-qa.cjs > logo-guard-qa.log 2>&1 || { tail -n 25 logo-guard-qa.log; exit 1; }
+          grep '^LOGO_GUARD_' logo-guard-qa.log
       - name: Roll back if production QA fails
         if: failure()
         run: |
