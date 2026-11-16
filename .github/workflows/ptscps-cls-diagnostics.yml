@@ -1,4 +1,5 @@
 name: PTSCPS CLS attribution (read-only browser)
+# Post-production-fix run: 2026-11-16, verify live child theme CSS
 on:
   push:
     branches: [main]
