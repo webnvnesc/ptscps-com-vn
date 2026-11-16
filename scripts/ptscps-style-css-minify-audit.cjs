@@ -17,15 +17,10 @@ async function run(){
  root.walkRules(()=>rules.count++);
  root.walkAtRules(a=>{rules.atRules[a.name]=(rules.atRules[a.name]||0)+1});
  root.walkDecls(d=>{rules.declarations++;if(d.important)rules.important++});
- const variants=[
-  {name:'original',css},
-  {name:'lightning',css:transform({filename:'style.min.css',code:Buffer.from(css),minify:true,errorRecovery:false}).code.toString()},
-  {name:'cssnano_conservative',css:(await postcss([cssnano({preset:['default',{
-    mergeRules:false,mergeLonghand:false,discardUnused:false,reduceIdents:false,normalizeUrl:false,
-    normalizeString:false,minifySelectors:false,calc:false,convertValues:false
-  }]})]).process(css,{from:undefined,map:false})).css},
-  {name:'cssnano_default',css:(await postcss([cssnano({preset:'default'})]).process(css,{from:undefined,map:false})).css}
- ];
+ const variants=[{name:'original',css}];
+ try {variants.push({name:'lightning',css:transform({filename:'style.min.css',code:Buffer.from(css),minify:true,errorRecovery:true}).code.toString()})}catch(e){console.log('OPTIMIZER_REJECT '+JSON.stringify({name:'lightning',reason:String(e.message).slice(0,300)}))}
+ try {variants.push({name:'cssnano_conservative',css:(await postcss([cssnano({preset:['default',{mergeRules:false,mergeLonghand:false,discardUnused:false,reduceIdents:false,normalizeUrl:false,normalizeString:false,minifySelectors:false,calc:false,convertValues:false}]})]).process(css,{from:undefined,map:false})).css})}catch(e){console.log('OPTIMIZER_REJECT '+JSON.stringify({name:'cssnano_conservative',reason:String(e.message).slice(0,300)}))}
+ try {variants.push({name:'cssnano_default',css:(await postcss([cssnano({preset:'default'})]).process(css,{from:undefined,map:false})).css})}catch(e){console.log('OPTIMIZER_REJECT '+JSON.stringify({name:'cssnano_default',reason:String(e.message).slice(0,300)}))}
  const results=[];
  for(const v of variants){
    const data={name:v.name,bytes:Buffer.byteLength(v.css),gzip:gzip(v.css),brotli:brotli(v.css),
