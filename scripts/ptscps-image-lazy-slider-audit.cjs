@@ -138,9 +138,13 @@ async function run(browser,entry){
       requestedUrl:rel(x.currentSrc||x.src)
    }));
    const sliderURLs=[...new Set([
-      ...images.filter(x=>x.inSlider).map(x=>x.currentSrc||x.src),
-      ...initial.css.filter(x=>x.inSlider).flatMap(x=>x.sources||[])
-   ])].filter(x=>x.startsWith('http')&&!x.startsWith('data:')).slice(0,12);
+      ...images.filter(x=>x.inSlider).flatMap(x=>[x.currentSrc,x.src,x.dataset?.src]),
+      ...initial.css.filter(x=>x.inSlider).flatMap(x=>[
+        ...(x.sources||[]),
+        ...(x.data||[]).filter(row=>row[0]==='src').map(row=>row[1])
+      ])
+   ].filter(Boolean).map(x=>{try{return new URL(x,root).href}catch{return ''}}))]
+     .filter(x=>isImageURL(x)).slice(0,12);
    // Dimension probe occurs after FCP / first snapshot to avoid perturbing first-load network evidence.
    const actualImageDimensions=await page.evaluate(async urls=>{
      const results=[];
