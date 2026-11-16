@@ -1,0 +1,39 @@
+name: PTSCPS purge stale WP Super Cache HTML after SR7 JS optimization
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-wpsc-purge-once.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  purge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Clear WP Super Cache HTML with native admin control
+        shell: bash
+        run: |
+          node --check scripts/ptscps-wpsc-clear-html-cache.cjs
+          node scripts/ptscps-wpsc-clear-html-cache.cjs > wpsc-purge.log 2>&1 || { grep -E '^(WPSC_|Error)' wpsc-purge.log | tail -n 20 | cut -c1-16000; exit 1; }
+          grep '^WPSC_' wpsc-purge.log | cut -c1-16000
+      - name: Store cache purge verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-wpsc-html-purge-after-js-optimization
+          path: wpsc-purge.log
+          retention-days: 10
+          if-no-files-found: warn
