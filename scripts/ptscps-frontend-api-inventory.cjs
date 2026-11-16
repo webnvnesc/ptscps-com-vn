@@ -8,12 +8,14 @@ const fs=require('node:fs');
 const origin='https://ptscps.com.vn';
 const targetPaths=[
   '/', '/dich-vu', '/thu-ngo.htm', '/hseq', '/tin-tuc', '/tuyen-dung',
-  '/lien-he','/co-dong','/quan-he-co-dong','/bao-cao-tai-chinh',
-  '/hoat-dong-cua-cong-ty','/thu-vien-hinh-anh-pps',
-  '/van-hanh-va-bao-duong-fpso-fso-mopu'
+  '/lien-he','/c/co-dong','/c/co-dong/quan-he-co-dong','/c/co-dong/bao-cao-tai-chinh',
+  '/c/tin-tuc/hoat-dong-cua-cong-ty','/thu-vien-pps',
+  '/dich-vu/van-hanh-va-bao-duong-fpso-fso-mopu',
+  '/cong-ty-pps-hanh-trinh-tri-an-nam-2026-tai-tp-ho-chi-minh.htm',
+  '/en'
 ];
 const widths=[1440,412];
-const isAPI=u=>/\/wp-json(?:\/|\?)|[?&]rest_route=|\/wp-admin\/admin-ajax\.php|\/wp-admin\/admin-post\.php|\/wp-admin\/admin\.php\?|\/wp-json\/|[?&]wc-ajax=|\/ajax(?:\/|\?)/i.test(u);
+const isAPI=u=>{try{const p=new URL(u).pathname;return /\/wp-json(?:\/|$)|\/wp-admin\/admin-ajax\.php$|\/wp-admin\/admin-post\.php$|\/ajax(?:\/|$)/i.test(p) || /[?&](?:rest_route|wc-ajax)=/i.test(new URL(u).search)}catch{return false}};
 const safeURL=x=>{
  try{const u=new URL(x);if(u.origin!==origin)return u.origin+u.pathname;
  // Do not print auth/session parameters.
