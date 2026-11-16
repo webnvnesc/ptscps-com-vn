@@ -1,0 +1,36 @@
+name: PTSCPS read-only Jannah CSSOM root cause for oversized header
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-header-root-css-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare effective CSS rules with and without logo guard
+        run: |
+          node --check scripts/ptscps-header-root-css-audit.cjs
+          node scripts/ptscps-header-root-css-audit.cjs > header-root-css.log 2>&1 || { tail -n 25 header-root-css.log; exit 1; }
+          grep '^ROOT_LOGO_' header-root-css.log | cut -c1-900
+      - name: Archive geometry and CSSOM diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-header-root-css-diagnostics
+          path: |
+            header-root-css.log
+            ptscps-logo-root-audit
+          retention-days: 10
+          if-no-files-found: warn
