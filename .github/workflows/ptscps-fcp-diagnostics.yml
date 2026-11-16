@@ -1,0 +1,77 @@
+name: PTSCPS FCP diagnostics (production read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-fcp-diagnostics.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-lighthouse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Lighthouse and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund lighthouse@13.5.0 playwright
+          npx playwright install --with-deps chromium
+      - name: Analyze page with same mobile Lighthouse settings twice
+        shell: bash
+        run: |
+          mkdir -p fcp-results
+          export CHROME_PATH="$(node -e "process.stdout.write(require('playwright').chromium.executablePath())")"
+          echo "Lighthouse version:"
+          npx lighthouse --version
+          for attempt in 1 2; do
+            npx lighthouse "https://ptscps.com.vn/" \
+              --only-categories=performance \
+              --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
+              --throttling-method=simulate \
+              --form-factor=mobile \
+              --screenEmulation.mobile=true \
+              --screenEmulation.width=412 \
+              --screenEmulation.height=823 \
+              --screenEmulation.deviceScaleFactor=1.75 \
+              --output=json \
+              --output-path="fcp-results/mobile-${attempt}.json" \
+              --quiet || { echo "FAIL: Lighthouse run ${attempt}"; exit 1; }
+            echo "Completed Lighthouse run ${attempt}"
+          done
+          node - <<'JS'
+          const fs=require('fs');
+          for(const file of fs.readdirSync('fcp-results').filter(n=>n.endsWith('.json'))) {
+            const d=JSON.parse(fs.readFileSync('fcp-results/'+file,'utf8'));
+            const a=d.audits, get=(name)=>a[name]||{};
+            const metric=get('metrics').details?.items?.[0]||{};
+            const render=get('render-blocking-insight').details?.items||[];
+            const blocking=render.filter(x=>x.url).map(x=>({url:x.url,bytes:x.totalBytes,wastedMs:x.wastedMs}));
+            const out={file,date:d.fetchTime,lighthouse:d.lighthouseVersion,
+              fcp:get('first-contentful-paint').numericValue,lcp:get('largest-contentful-paint').numericValue,
+              si:get('speed-index').numericValue,tbt:get('total-blocking-time').numericValue,
+              cls:get('cumulative-layout-shift').numericValue,
+              ttfbMeasured:get('server-response-time').numericValue,
+              simulatedTTFB:metric.timeToFirstByte,
+              fcpObserved:metric.observedFirstContentfulPaint,
+              blockingSavings:get('render-blocking-insight').displayValue,
+              blockingCount:blocking.length,
+              fontSavings:get('font-display-insight').displayValue,
+              networkReq:get('diagnostics').details?.items?.[0]?.numRequests,
+              styles:get('diagnostics').details?.items?.[0]?.numStylesheets,
+              scripts:get('diagnostics').details?.items?.[0]?.numScripts,
+              blockingTop:blocking.slice(0,25)};
+            console.log('FCP_RESULT',JSON.stringify(out));
+          }
+          JS
+      - name: Upload Lighthouse artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-fcp-lighthouse-mobile-after-cls-fix
+          path: fcp-results/
+          retention-days: 7
+          if-no-files-found: warn
