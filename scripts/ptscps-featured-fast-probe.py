@@ -6,7 +6,7 @@ server=os.environ["FTP_SERVER"]; u=urlsplit(server if "://" in server else "//"+
 f=ftplib.FTP_TLS(timeout=20);f.connect(u.hostname,u.port or 21,timeout=20);f.auth();f.login(os.environ["FTP_USERNAME"],os.environ["FTP_PASSWORD"]);f.prot_p()
 root="/domains/ptscps.com.vn/public_html/wp-content/themes/"
 base=root+"jannah/"
-candidates=["page.php","single.php","templates/single-post.php","templates/single-post/featured.php","templates/single-post/content.php","templates/featured.php","templates/single-post/featured-image.php","templates/single-post/post-featured.php","templates/single-post/featured-media.php","templates/single-post/featured-area.php","templates/post-layouts/featured.php","framework/parts/post-components.php","framework/parts/single.php","inc/theme-setup.php","functions.php"]
+candidates=["page.php","single.php","templates/single-post.php","templates/single-post/featured.php","templates/single-post/content.php","templates/featured.php","templates/page-head.php","templates/single-post/featured-image.php","templates/single-post/post-featured.php","templates/single-post/featured-media.php","templates/single-post/featured-area.php","templates/post-layouts/featured.php","framework/parts/post-components.php","framework/parts/single.php","inc/theme-setup.php","functions.php"]
 def fetch(p):
  chunks=[];size=0
  def app(b):
@@ -28,7 +28,7 @@ try:
  for rel in candidates:
   txt=fetch(base+rel)
   if not txt:continue
-  if rel in ("templates/single-post/featured.php","templates/single-post/content.php","templates/featured.php"):
+  if rel in ("templates/single-post/featured.php","templates/single-post/content.php","templates/featured.php","templates/page-head.php"):
    all_lines=txt.splitlines()
    for i,src in enumerate(all_lines):
     if rel.endswith("featured.php") and i>=175:break
