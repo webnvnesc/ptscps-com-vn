@@ -53,6 +53,8 @@ async function run(browser,entry){
    await page.waitForTimeout(3200);
    initial=await page.evaluate(({dpr})=>{
      const viewport={width:innerWidth,height:innerHeight,scrollY:scrollY,dpr,docHeight:document.documentElement.scrollHeight};
+     const ms=v=>Math.round(v||0);
+     const isImageURL=u=>/\.(?:jpe?g|png|webp|avif|gif|svg)(?:\?|$)/i.test(u||'');
      const seen=new Set();
      const clean=(u)=>{try{return new URL(u,location.href).href}catch{return u||''}};
      const row=(e)=>{
