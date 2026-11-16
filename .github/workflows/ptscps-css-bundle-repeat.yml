@@ -1,0 +1,53 @@
+name: PTSCPS repeated CSS bundle benchmark (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-css-bundle-repeat.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  repeat:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: fixed
+            width: 412
+            cycles: 7
+          - mode: live
+            width: 412
+            cycles: 6
+          - mode: fixed
+            width: 1440
+            cycles: 4
+    env:
+      TEST_MODE: ${{ matrix.mode }}
+      TEST_WIDTH: ${{ matrix.width }}
+      TEST_CYCLES: ${{ matrix.cycles }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Run randomized repeated A/B with cold contexts
+        shell: bash
+        run: |
+          node --check scripts/ptscps-css-bundle-repeat.cjs
+          mkdir -p bundle-repeat-results
+          node scripts/ptscps-css-bundle-repeat.cjs > bundle-repeat-results/log.txt 2>&1 || { tail -n 55 bundle-repeat-results/log.txt; exit 1; }
+          grep -E '^(BUNDLE|REJECT|STATS|FATAL)' bundle-repeat-results/log.txt | cut -c1-12000
+      - name: Store repeat measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-bundle-repeat-${{ matrix.mode }}-${{ matrix.width }}
+          path: bundle-repeat-results/
+          retention-days: 10
+          if-no-files-found: warn
