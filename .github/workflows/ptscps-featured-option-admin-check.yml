@@ -1,0 +1,33 @@
+name: PTSCPS native Jannah hide featured page option audit (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-featured-option-admin-check.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect native page option without writes
+        shell: bash
+        run: |
+          python3 -m py_compile scripts/ptscps-featured-option-admin-check.py
+          python3 -u scripts/ptscps-featured-option-admin-check.py > featured-option.log 2>&1 || { tail -n 50 featured-option.log; exit 1; }
+          grep -E '^(WP_ADMIN |THEME_SOURCE )' featured-option.log | cut -c1-11000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-featured-option-admin
+          path: featured-option.log
+          retention-days: 7
+          if-no-files-found: warn
