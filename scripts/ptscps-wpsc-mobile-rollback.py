@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Restore exact previous WP Super Cache config when rollout verification fails."""
-import ftplib,hashlib,io,os,uuid
+import ftplib,hashlib,io,os,uuid,re
 from pathlib import Path
 from urllib.parse import urlsplit
 saved=Path("wpsc-config-before-device-fix.php")
@@ -18,7 +18,8 @@ try:
  curr=read(p)
  if curr==old:
   print("WPSC_MOBILE_ALREADY_ROLLED_BACK");raise SystemExit(0)
- expected=old.replace(b"$wp_cache_mobile_enabled = 0;",b"$wp_cache_mobile_enabled = 1;")
+ expected,n=re.subn(rb"(?m)^([ \t]*\$wp_cache_mobile_enabled[ \t]*=[ \t]*)0([ \t]*;[ \t]*(?:\r?\n|$))",rb"\g<1>1\2",old)
+ if n!=1:raise RuntimeError("Unexpected rollback source")
  if curr!=expected:raise RuntimeError("Refusing rollback: installed configuration differs from candidate")
  uid=uuid.uuid4().hex[:12]
  tmp=p+"."+uid+".restore"
