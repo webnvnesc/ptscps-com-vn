@@ -1,0 +1,36 @@
+name: PTSCPS browser-only Jannah CSS bundling A/B
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-jannah-bundle-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare original and bundled Jannah CSS (no FTP writes)
+        shell: bash
+        run: |
+          node --check scripts/ptscps-jannah-bundle-ab.cjs
+          mkdir -p bundle-results
+          node scripts/ptscps-jannah-bundle-ab.cjs > bundle-results/log.txt 2>&1 || { tail -n 45 bundle-results/log.txt; exit 1; }
+          grep -E '^(STYLE_ORDER|PLAN|BUNDLE|MEASURE|SUMMARY|NO_SAFE_BUNDLE|FATAL)' bundle-results/log.txt | cut -c1-6500
+      - name: Preserve screenshot and result JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-jannah-css-bundle-ab
+          path: bundle-results/
+          retention-days: 10
+          if-no-files-found: warn
