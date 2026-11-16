@@ -15,6 +15,7 @@ const USER=process.env.WP_ADMIN_USERNAME;
 const PASS=process.env.WP_ADMIN_PASSWORD;
 if(!USER||!PASS)throw Error('WordPress admin credentials unavailable');
 const assert=(c,msg)=>{if(!c)throw Error(msg)};
+(async()=>{
 const browser=await chromium.launch({headless:true});
 let editor=null,original=null,changed=false;
 async function openEditor(){
@@ -37,7 +38,7 @@ async function saveFlag(checked){
  await openEditor();
  const persisted=await editor.locator(FLAG).isChecked();
  assert(persisted===checked,'Jannah native checkbox failed to persist');
- console.log('NATIVE_OPTION_PERSISTED '+JSON.stringify({pageId:5,option:'tie_hide_page_featured',checked:persisted}),flush=true);
+ console.log('NATIVE_OPTION_PERSISTED '+JSON.stringify({pageId:5,option:'tie_hide_page_featured',checked:persisted}));
 }
 function purge(){
  const stdout=execFileSync('python3',['scripts/ptscps-purge-home-featured.py'],{
@@ -113,3 +114,4 @@ try{
 }finally{
  await browser.close();
 }
+})().catch(e=>{console.error("FEATURED_NATIVE_FATAL "+String(e.stack||e));process.exitCode=1});
