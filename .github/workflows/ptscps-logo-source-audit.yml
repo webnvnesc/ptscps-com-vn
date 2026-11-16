@@ -1,0 +1,33 @@
+name: PTSCPS header logo and alternate media provenance (read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-logo-source-audit.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify code
+        run: python3 -m py_compile scripts/ptscps-logo-source-audit.py
+      - name: Inspect actual public pages, media API and uploads
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-logo-source-audit.py > logo-source-audit.log 2>&1 || { tail -n 30 logo-source-audit.log; exit 1; }
+          grep -E '^(PAGE |PAGE_ERROR |REST_MEDIA |REST_ERROR |IMAGE_HEAD |FTP_LOGO_FILES |FTP_ERROR )' logo-source-audit.log | cut -c1-20000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-logo-source-audit
+          path: logo-source-audit.log
+          retention-days: 15
+          if-no-files-found: warn
