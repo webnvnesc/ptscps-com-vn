@@ -1,0 +1,43 @@
+name: PTSCPS multi-template CSS usage analysis (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-multitemplate-css-coverage.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [412, 1440]
+    env:
+      TEST_WIDTH: ${{ matrix.width }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser and stylesheet parser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright postcss
+          npx playwright install --with-deps chromium
+      - name: Analyze Jannah CSS across public templates and interactions
+        shell: bash
+        run: |
+          node --check scripts/ptscps-multitemplate-css-coverage.cjs
+          node scripts/ptscps-multitemplate-css-coverage.cjs > css-audit.log 2>&1 || { tail -n 65 css-audit.log; exit 1; }
+          grep -E '^(PAGE |PAGE_ERROR |SUMMARY |WARNING)' css-audit.log | cut -c1-13500
+      - name: Save coverage metrics and per-page JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-multitemplate-css-coverage-${{ matrix.width }}
+          path: |
+            selector-audit-${{ matrix.width }}/
+            css-audit.log
+          retention-days: 10
+          if-no-files-found: warn
