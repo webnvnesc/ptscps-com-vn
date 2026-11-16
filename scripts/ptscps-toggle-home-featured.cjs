@@ -26,8 +26,11 @@ async function openEditor(){
 async function saveFlag(checked){
  await openEditor();
  const input=editor.locator(FLAG);
- if(checked)await input.check({force:true,timeout:15000});
- else await input.uncheck({force:true,timeout:15000});
+ await input.evaluate((el,enabled)=>{
+  el.checked=enabled;
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+  el.dispatchEvent(new Event('change',{bubbles:true}));
+ },checked);
  assert((await input.isChecked())===checked,'Jannah checkbox input state not changed');
  const submit=editor.locator('#publish');
  assert((await submit.count())===1,'Expected classic WordPress update button missing');
