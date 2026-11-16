@@ -61,7 +61,7 @@ jobs:
               const resources=performance.getEntriesByType('resource').filter(x=>/fonts|\\.woff2?|\\.css|\\.js/i.test(x.name));
               const k=window.__paints.find(x=>x.name==='first-contentful-paint');
               const cssLinks=[...document.querySelectorAll('link[rel=stylesheet]')].map(x=>({url:x.href.replace(location.origin,''),media:x.media,disabled:x.disabled}));
-              const fontRules=[...document.styleSheets].filter(x=>/googleapis|jannah-child/.test(x.href||'')).map(x=>({href:x.href,loaded:!!x.cssRules?.length}));
+              
               const cs=q=>{const e=document.querySelector(q);if(!e)return null;const c=getComputedStyle(e);return {font:c.fontFamily,fontWeight:c.fontWeight,fontSize:c.fontSize,display:c.display,opacity:c.opacity}};
               return {
                 fcp:k?.t||0,paints:window.__paints,ttfb:Math.round(nav.responseStart),
