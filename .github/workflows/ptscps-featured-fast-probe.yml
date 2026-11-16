@@ -1,0 +1,31 @@
+name: PTSCPS Jannah featured template fast probe (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-featured-fast-probe.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate Jannah template
+        shell: bash
+        run: |
+          python3 -m py_compile scripts/ptscps-featured-fast-probe.py
+          python3 -u scripts/ptscps-featured-fast-probe.py > fast-probe.log 2>&1 || { tail -n 60 fast-probe.log; exit 1; }
+          grep -E '^(FAST_LIST|FAST_FILE|FAST_HIT)' fast-probe.log | cut -c1-6500 | head -n 140
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-featured-fast-probe
+          path: fast-probe.log
+          retention-days: 10
+          if-no-files-found: warn
