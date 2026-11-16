@@ -1,0 +1,49 @@
+name: PTSCPS anonymous Lighthouse Accessibility and SEO verification
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-lighthouse-a11y-seo.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and Lighthouse 13.5.0
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright lighthouse@13.5.0
+          npx playwright install --with-deps chromium
+      - name: Run anonymous homepage Lighthouse Accessibility and SEO
+        shell: bash
+        run: |
+          mkdir -p lighthouse-a11y-seo
+          export CHROME_PATH="$(node -e 'process.stdout.write(require("playwright").chromium.executablePath())')"
+          node --version
+          "$CHROME_PATH" --version
+          npx lighthouse https://ptscps.com.vn/ --preset=desktop --only-categories=accessibility,seo --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --max-wait-for-load=60000 --output=json --output-path=lighthouse-a11y-seo/home.json --quiet
+          node - <<'JS'
+          const fs=require('fs');
+          const j=JSON.parse(fs.readFileSync('lighthouse-a11y-seo/home.json','utf8'));
+          for(const key of ['accessibility','seo']){
+            const c=j.categories[key];
+            const failed=c.auditRefs.map(r=>({ref:r,a:j.audits[r.id]})).filter(x=>x.ref.weight>0&&x.a?.score!==1&&x.a?.score!==null);
+            console.log('LIGHTHOUSE_RESULT',JSON.stringify({category:key,score:Math.round(c.score*100),failed:failed.map(x=>({id:x.ref.id,score:x.a.score,title:x.a.title,count:x.a.details?.items?.length||0}))}));
+          }
+          console.log('LIGHTHOUSE_CONTEXT',JSON.stringify({final:j.finalUrl,agent:j.userAgent,version:j.lighthouseVersion,fetched:j.fetchTime}));
+          JS
+      - name: Archive actual Lighthouse results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-lighthouse-a11y-seo-anonymous
+          path: lighthouse-a11y-seo/
+          if-no-files-found: warn
+          retention-days: 10
