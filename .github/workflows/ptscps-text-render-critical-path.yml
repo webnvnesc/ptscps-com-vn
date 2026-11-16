@@ -32,7 +32,7 @@ jobs:
           node --check scripts/ptscps-text-render-critical-path.cjs
           node scripts/ptscps-text-render-critical-path.cjs > text-render.log 2>&1 || { tail -n 35 text-render.log; exit 1; }
           grep '^RENDER_SUMMARY' text-render.log | cut -c1-10000
-          grep '^RENDER_CASE' text-render.log | cut -c1-12000
+          grep '^RENDER_CASE' text-render.log | cut -c1-9000
       - name: Archive evidence
         if: always()
         uses: actions/upload-artifact@v4
