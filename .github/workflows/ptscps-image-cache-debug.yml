@@ -1,0 +1,16 @@
+name: PTSCPS image cache and MU plugin output diagnosis (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-image-cache-debug.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect anonymous HTML and cache headers
+        run: python3 -u scripts/ptscps-image-cache-debug.py
