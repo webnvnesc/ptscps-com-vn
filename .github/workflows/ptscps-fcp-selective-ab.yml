@@ -28,12 +28,11 @@ jobs:
           const url='https://ptscps.com.vn/';
           const scenarios=[
             {name:'baseline_1',match:[]},
-            {name:'roboto_async',match:['/google-fonts/css/roboto.css','/google-fonts/css/robotoslab.css']},
-            {name:'offscreen_css_async',match:['/assets/ilightbox/dark-skin/skin.css','/assets/css/single.min.css','/assets/css/widgets.min.css']},
-            {name:'roboto_plus_offscreen_async',match:['/google-fonts/css/roboto.css','/google-fonts/css/robotoslab.css','/assets/ilightbox/dark-skin/skin.css','/assets/css/single.min.css','/assets/css/widgets.min.css']},
+            {name:'ilightbox_only',match:['/assets/ilightbox/dark-skin/skin.css']},
+            {name:'single_only',match:['/assets/css/single.min.css']},
+            {name:'widgets_only',match:['/assets/css/widgets.min.css']},
             {name:'baseline_2',match:[]},
-          ];
-          function transform(html,match){
+          ];          function transform(html,match){
             let matched=[];
             if(match.length===0)return {html,matched};
             const out=html.replace(/<link\b[^>]*>/gi,tag=>{
