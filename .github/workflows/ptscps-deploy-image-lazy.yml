@@ -2,7 +2,9 @@ name: PTSCPS deploy safe image lazy loading (MU plugin)
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/ptscps-deploy-image-lazy.yml"]
+    paths:
+      - ".github/workflows/ptscps-deploy-image-lazy.yml"
+      - "deploy/ptscps-offscreen-images.php"
   workflow_dispatch:
 permissions:
   contents: read
