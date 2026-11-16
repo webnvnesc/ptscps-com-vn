@@ -1,0 +1,42 @@
+name: PTSCPS audit all public header pages Accessibility and SEO desktop mobile
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-header-all-a11y-seo-baseline.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install axe and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright @axe-core/playwright
+          npx playwright install --with-deps chromium
+      - name: Discover full navigation
+        run: |
+          node scripts/ptscps-all-header-pages-discovery.cjs > menu-discovery.log 2>&1
+          grep '^HEADER_DISCOVERY_SUMMARY' menu-discovery.log
+      - name: Audit Accessibility SEO on each page as anonymous desktop and mobile
+        run: |
+          node scripts/ptscps-header-all-a11y-seo-baseline.cjs > header-audit.log 2>&1 || { tail -n 30 header-audit.log; exit 1; }
+          grep '^HEADER_AUDIT_SUMMARY' header-audit.log
+          grep '^HEADER_PAGE_AUDIT' header-audit.log | cut -c1-4000
+      - name: Archive all finding details
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-all-header-accessibility-seo-baseline
+          path: |
+            ptscps-header-pages.json
+            menu-discovery.log
+            header-audit.log
+            ptscps-header-audit/
+          retention-days: 30
+          if-no-files-found: ignore
