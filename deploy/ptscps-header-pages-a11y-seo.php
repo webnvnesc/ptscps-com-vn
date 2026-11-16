@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS Header Pages Accessibility and SEO
  * Description: Narrow fixes for audited header pages: meta descriptions, accessible image links, post-card heading/contrast, contact phone and missing main landmarks.
- * Version: 1.0.1
+ * Version: 1.0.2
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -135,9 +135,17 @@ function ptscps_nav_a11y_content( $content ) {
                     $article,
                     1
                 );
-                // Some invitation excerpts include an H4 directly after the
-                // card H2. Keep the authored text but restore H2 -> H3 order.
+                // Elementor emits inconsistent H3/H4 post-card titles on this
+                // archive. Normalize all post-card titles to H2 below the page H1.
                 if ( '/thu-moi-chao-gia' === ptscps_nav_a11y_path() ) {
+                    $article = preg_replace_callback(
+                        '~<h4\b([^>]*\belementor-post__title\b[^>]*)>([\s\S]*?)</h4>~i',
+                        static function ( $h ) {
+                            return '<h2' . $h[1] . '>' . $h[2] . '</h2>';
+                        },
+                        $article
+                    );
+                    // Other excerpt H4s belong below their article H2.
                     $article = preg_replace_callback(
                         '~<h4\b([^>]*)>([\s\S]*?)</h4>~i',
                         static function ( $h ) {
