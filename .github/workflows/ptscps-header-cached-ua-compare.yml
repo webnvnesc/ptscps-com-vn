@@ -15,3 +15,5 @@ jobs:
       - name: Compare URL and cache bypass for desktop/mobile browser identifiers
         run: |
           python3 -u scripts/ptscps-header-cached-ua-compare.py
+
+# Read-only recheck triggered by user request on 2026-11-17.
