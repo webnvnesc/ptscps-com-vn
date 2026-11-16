@@ -22,6 +22,6 @@ for path in ['/c/hoat-dong-cua-cong-ty?ptscps_debug='+uuid.uuid4().hex]:
  try:
   req=urllib.request.Request('https://ptscps.com.vn'+path,headers={'User-Agent':'Mozilla/5.0','Cache-Control':'no-cache'})
   with urllib.request.urlopen(req,timeout=45) as f: html=f.read().decode('utf-8','replace')
-  imgs=[i for i in re.findall(r'<img\\b[^>]*>',html,re.I) if 'jannah-image-large' in i and 'wp-post-image' in i]
+  imgs=[i for i in re.findall(r'<img\b[^>]*>',html,re.I) if 'jannah-image-large' in i and 'wp-post-image' in i]
   print('ARCHIVE',json.dumps({'count':len(imgs),'lazy':sum('loading="lazy"' in i for i in imgs),'first':imgs[:2],'last':imgs[-2:]}) )
  except Exception as e:print('ARCHIVE_ERROR',type(e).__name__,str(e)[:180])
