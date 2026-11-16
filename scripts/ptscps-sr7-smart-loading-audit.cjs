@@ -35,8 +35,10 @@ try{
     }
   }
   if(!settingsOpened){
-    const el=page.locator('button:has-text("Settings"),[role="button"]:has-text("Settings")').first();
-    try{if(await el.count()){await el.click({timeout:12000});settingsOpened=true;}}catch(e){}
+    const el=page.getByRole('link',{name:'Settings',exact:true});
+    try{if(await el.count()){await el.first().click({timeout:12000});settingsOpened=true;}}catch(e){
+      console.log('SR7_SETTINGS_CLICK_ERROR '+String(e.message||e).slice(0,200));
+    }
   }
   await page.waitForTimeout(1500);
   console.log('SR7_SETTINGS_OPEN '+JSON.stringify({clicked:settingsOpened,
