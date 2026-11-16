@@ -1,0 +1,44 @@
+name: PTSCPS A/B remove home SR7 slider browser only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-remove-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  paired:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [412, 1440]
+    env:
+      TEST_WIDTH: ${{ matrix.width }}
+      TEST_CYCLES: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: A/B normal, remove widget, remove widget and SR7 assets
+        shell: bash
+        run: |
+          node --check scripts/ptscps-sr7-remove-ab.cjs
+          node scripts/ptscps-sr7-remove-ab.cjs > sr7-ab.log 2>&1 || { tail -n 36 sr7-ab.log; exit 1; }
+          grep '^SR7_SUMMARY' sr7-ab.log | cut -c1-11000
+      - name: Store raw samples and comparison screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-removal-${{ matrix.width }}
+          path: |
+            sr7-ab.log
+            sr7-removed-ab-${{ matrix.width }}/
+          retention-days: 10
+          if-no-files-found: warn
