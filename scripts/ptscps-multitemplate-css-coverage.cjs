@@ -65,7 +65,8 @@ function candidates(rows,filter,n=12){
 async function doPage(browser,entry){
  const ctx=await browser.newContext({
   viewport:{width:WIDTH,height:WIDTH<650?823:900},
-  isMobile:WIDTH<650,hasTouch:WIDTH<650,deviceScaleFactor:WIDTH<650?1.5:1,locale:'vi-VN'});
+  isMobile:WIDTH<650,hasTouch:WIDTH<650,deviceScaleFactor:WIDTH<650?1.5:1,locale:'vi-VN',
+  ...(WIDTH<650?{userAgent:'Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36'}:{})});
  const page=await ctx.newPage();
  const errors=[],responses=[];
  page.on('pageerror',err=>errors.push(String(err.message).slice(0,150)));
@@ -197,7 +198,7 @@ async function main(){
  const initialBytes=sizes(initialAll);
  const usedBytes=sizes(all);
  const report={
-  width:WIDTH,source:TARGET,sourceHash:hashes[0],hashes,sourceBytes:text.length,
+  width:WIDTH,source:TARGET,userAgentType:WIDTH<650?'Chrome Android':'default desktop',sourceHash:hashes[0],hashes,sourceBytes:text.length,
   sampleCount:valid.length,totalCases:CASES.length,initialUsed:initialBytes,observedAcrossAll:usedBytes,
   initialUsedPercent:Math.round(initialBytes/text.length*1000)/10,
   observedPercent:Math.round(usedBytes/text.length*1000)/10,
