@@ -4,6 +4,10 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/ptscps-deploy-a11y-seo.yml"
+      - "deploy/ptscps-a11y-seo.php"
+      - "scripts/deploy-ptscps-a11y-seo.py"
+      - "scripts/ptscps-purge-a11y-seo-pages.py"
+      - "scripts/ptscps-a11y-seo-postdeploy.cjs"
   workflow_dispatch:
 permissions:
   contents: read
