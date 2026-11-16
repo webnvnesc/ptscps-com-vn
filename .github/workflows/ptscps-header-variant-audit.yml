@@ -1,0 +1,43 @@
+name: PTSCPS Jannah header logo and search intermittent audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-header-variant-audit.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+      HEADER_CYCLES: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare cache, logo and search across anonymous and logged-in browsers
+        shell: bash
+        run: |
+          node --check scripts/ptscps-header-variant-audit.cjs
+          node scripts/ptscps-header-variant-audit.cjs > header-variant.log 2>&1 || { tail -n 45 header-variant.log; exit 1; }
+          grep '^HEADER_SUMMARY' header-variant.log | cut -c1-15000
+      - name: Archive timings and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-header-variant-audit
+          path: |
+            header-variant.log
+            ptscps-header-variants/
+          if-no-files-found: warn
+          retention-days: 10
