@@ -67,3 +67,5 @@ jobs:
             responsive-logo-qa.log
           retention-days: 30
           if-no-files-found: ignore
+
+# Rerun after replacing the Jannah picture <source> candidate list as well as the img.
