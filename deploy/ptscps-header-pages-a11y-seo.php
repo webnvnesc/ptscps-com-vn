@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS Header Pages Accessibility and SEO
  * Description: Narrow fixes for audited header pages: meta descriptions, accessible image links, post-card heading/contrast, contact phone and missing main landmarks.
- * Version: 1.0.0
+ * Version: 1.0.1
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -135,6 +135,17 @@ function ptscps_nav_a11y_content( $content ) {
                     $article,
                     1
                 );
+                // Some invitation excerpts include an H4 directly after the
+                // card H2. Keep the authored text but restore H2 -> H3 order.
+                if ( '/thu-moi-chao-gia' === ptscps_nav_a11y_path() ) {
+                    $article = preg_replace_callback(
+                        '~<h4\b([^>]*)>([\s\S]*?)</h4>~i',
+                        static function ( $h ) {
+                            return '<h3' . $h[1] . '>' . $h[2] . '</h3>';
+                        },
+                        $article
+                    );
+                }
                 return $article;
             },
             $content
