@@ -64,3 +64,5 @@ jobs:
             ptscps-header-after-fix.json
           retention-days: 30
           if-no-files-found: ignore
+
+# Recheck after correcting the H4 inside the invitation-card excerpt.
