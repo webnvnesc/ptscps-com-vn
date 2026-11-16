@@ -1,0 +1,32 @@
+name: PTSCPS native HTTP2 latency and intermittent stalls (read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-intermittent-http.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check diagnostics
+        run: python3 -m py_compile scripts/ptscps-intermittent-http.py
+      - name: Measure repeated native HTTP2 CSS JS and HTML
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-intermittent-http.py > intermittent-http.log 2>&1 || { tail -n 45 intermittent-http.log; exit 1; }
+          grep '^CURL_SUMMARY' intermittent-http.log | cut -c1-2200
+      - name: Store detailed timing and raw observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-intermittent-http
+          path: |
+            intermittent-http.log
+            ptscps-intermittent-http/
+          retention-days: 12
+          if-no-files-found: warn
