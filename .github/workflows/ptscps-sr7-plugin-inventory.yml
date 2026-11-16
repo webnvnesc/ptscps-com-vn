@@ -1,0 +1,38 @@
+name: PTSCPS SR7 active plugin inventory read only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-plugin-inventory.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect WP plugin list
+        shell: bash
+        run: |
+          node --check scripts/ptscps-sr7-plugin-inventory.cjs
+          node scripts/ptscps-sr7-plugin-inventory.cjs > plugin-inventory.log 2>&1 || { tail -n 20 plugin-inventory.log; exit 1; }
+          grep '^SR7_PLUGIN_INVENTORY' plugin-inventory.log | cut -c1-22000
+      - name: Save audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-plugin-inventory
+          path: plugin-inventory.log
+          retention-days: 7
