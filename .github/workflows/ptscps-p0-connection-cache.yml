@@ -1,0 +1,32 @@
+name: PTSCPS P0 first-visitor cache transport diagnosis (read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-p0-connection-cache.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cache-diagnosis:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify source syntax
+        run: python3 -m py_compile scripts/ptscps-p0-connection-cache-audit.py
+      - name: Measure anonymous cold and reused connections
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-p0-connection-cache-audit.py > p0-cache.log 2>&1 || { tail -n 40 p0-cache.log; exit 1; }
+          grep -E '^P0_(SUMMARY|MARKERS)' p0-cache.log | cut -c1-2000
+      - name: Save cache evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-p0-first-visitor-connection-cache
+          path: |
+            p0-cache.log
+            ptscps-p0-evidence/
+          retention-days: 10
+          if-no-files-found: warn
