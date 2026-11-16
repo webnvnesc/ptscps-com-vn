@@ -1,0 +1,34 @@
+name: PTSCPS locate Jannah featured image template source read only
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-featured-template-source.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check read only script
+        run: python3 -m py_compile scripts/ptscps-featured-template-source.py
+      - name: Search actual Jannah featured image source
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-featured-template-source.py > featured-template-source.log 2>&1 || { tail -n 45 featured-template-source.log; exit 1; }
+          grep -E '^(FILE_HITS |MATCH |SOURCE_SEARCH_SUMMARY)' featured-template-source.log | cut -c1-4000 | head -n 190
+      - name: Archive exact source excerpts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-featured-template-source
+          path: featured-template-source.log
+          retention-days: 10
+          if-no-files-found: warn
