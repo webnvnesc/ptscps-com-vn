@@ -1,0 +1,35 @@
+name: PTSCPS Jannah feature CSS audit read only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-feature-css-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install CSS parser
+        run: npm install --no-save --no-audit --no-fund postcss postcss-selector-parser
+      - name: Measure strictly feature-scoped CSS size savings
+        shell: bash
+        run: |
+          node --check scripts/ptscps-feature-css-audit.cjs
+          node scripts/ptscps-feature-css-audit.cjs > feature-css-audit.log 2>&1 || { tail -n 50 feature-css-audit.log; exit 1; }
+          grep -E '^(VARIANT|GROUPS)' feature-css-audit.log | cut -c1-9000
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-feature-css-audit
+          path: |
+            feature-css-audit/
+            feature-css-audit.log
+          retention-days: 10
+          if-no-files-found: warn
