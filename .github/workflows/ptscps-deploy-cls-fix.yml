@@ -1,0 +1,128 @@
+name: PTSCPS deploy mobile slider CLS CSS fix (production FTPS)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-deploy-cls-fix.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      FTP_DIRECTORY: /domains/ptscps.com.vn/public_html
+    steps:
+      - name: Snapshot existing child theme CSS, safely replace, and verify
+        shell: bash
+        run: |
+          python3 -u - <<'PY'
+          import ftplib, os, io, sys, hashlib, uuid, socket
+          from urllib.parse import urlsplit
+          server=os.environ.get('FTP_SERVER','')
+          username=os.environ.get('FTP_USERNAME','')
+          password=os.environ.get('FTP_PASSWORD','')
+          target=os.environ['FTP_DIRECTORY'].rstrip('/')
+          if not (server and username and password):
+              sys.exit('FAIL: Missing FTPS secrets')
+          parsed=urlsplit(server if '://' in server else '//'+server)
+          if not parsed.hostname:
+              sys.exit('FAIL: Invalid FTPS host')
+          ftp=ftplib.FTP_TLS()
+          ftp.connect(parsed.hostname,parsed.port or 21,timeout=25)
+          ftp.auth();ftp.login(username,password);ftp.prot_p();ftp.set_pasv(True)
+          marker='PTSCPS CLS FIX 2026-11-16: home mobile Slider Revolution'
+          patch=('\n/* '+marker+'\n'
+                 ' * Prevent initial 471px SR7 module from shrinking to 202px after JS init.\n'
+                 ' * 668:353 is the native mobile slide aspect ratio.\n'
+                 ' * Limit to the home page and front-end mobile; Elementor page data remains unchanged.\n'
+                 ' */\n'
+                 '@media (max-width: 767px) {\n'
+                 '  body.home.page-id-5:not(.elementor-editor-active) .elementor-element-77137dd sr7-module#SR7_1_1 {\n'
+                 '    height: calc((100vw - 30px) * .528443) !important;\n'
+                 '    overflow: hidden !important;\n'
+                 '  }\n'
+                 '}\n'
+                 '/* END '+marker+' */\n').encode('utf-8')
+          def get(name):
+              b=bytearray()
+              def collect(chunk):
+                  if len(b)+len(chunk)>200000:
+                      raise ValueError('CSS file unexpectedly large')
+                  b.extend(chunk)
+              ftp.retrbinary('RETR '+name,collect)
+              return bytes(b)
+          try:
+              ftp.cwd(target)
+              entries={x.rstrip('/').split('/')[-1] for x in ftp.nlst()}
+              if not {'wp-admin','wp-content','wp-includes','index.php'}.issubset(entries):
+                  sys.exit('FAIL: unexpected WordPress root')
+              ftp.cwd(target+'/wp-content/themes/jannah-child')
+              original=get('style.css')
+              if b'Theme Name:' not in original or b'Jannah Child' not in original or b'Template:' not in original:
+                  sys.exit('FAIL: target does not look like Jannah child stylesheet')
+              if marker.encode() in original:
+                  print('ALREADY_APPLIED: the same CLS patch exists. No changes made.')
+                  sys.exit(0)
+              if b'77137dd sr7-module#SR7_1_1' in original:
+                  sys.exit('FAIL: preexisting slider override needs manual conflict review')
+              print('BACKUP: original child CSS size',len(original),'SHA256',hashlib.sha256(original).hexdigest())
+              open('ptscps-jannah-child-style-before-cls.css','wb').write(original)
+              new=original.rstrip(b'\n')+b'\n'+patch
+              uid=uuid.uuid4().hex[:12]
+              tmp='.ptscps-cls-'+uid+'.tmp'
+              backup='.ptscps-cls-backup-'+uid+'.css.bak'
+              tmp_created=False
+              backup_created=False
+              swapped=False
+              try:
+                  ftp.storbinary('STOR '+tmp,io.BytesIO(new))
+                  tmp_created=True
+                  if hashlib.sha256(get(tmp)).digest()!=hashlib.sha256(new).digest():
+                      raise ValueError('Uploaded candidate has invalid checksum')
+                  print('PASS: candidate CSS uploaded and verified')
+                  ftp.storbinary('STOR '+backup,io.BytesIO(original))
+                  backup_created=True
+                  if hashlib.sha256(get(backup)).digest()!=hashlib.sha256(original).digest():
+                      raise ValueError('Remote backup invalid checksum')
+                  print('PASS: backup CSS verified at',backup)
+                  ftp.rename('style.css','.ptscps-original-'+uid+'.tmp')
+                  swapped=True
+                  try:
+                      ftp.rename(tmp,'style.css')
+                      tmp_created=False
+                      if hashlib.sha256(get('style.css')).digest()!=hashlib.sha256(new).digest():
+                          raise ValueError('Deployed production CSS checksum mismatch')
+                  except Exception as error:
+                      print('FAIL: validation failed, attempting rollback',type(error).__name__)
+                      try:
+                          ftp.rename('.ptscps-original-'+uid+'.tmp','style.css')
+                      except Exception:
+                          ftp.storbinary('STOR style.css',io.BytesIO(original))
+                      raise
+                  ftp.delete('.ptscps-original-'+uid+'.tmp')
+                  print('SUCCESS: patched Jannah child theme stylesheet in production')
+                  print('SUCCESS: original retained for rollback:',backup)
+                  print('NEW_SHA256:',hashlib.sha256(new).hexdigest())
+              finally:
+                  if tmp_created:
+                      try:ftp.delete(tmp)
+                      except Exception:pass
+          finally:
+              try:ftp.quit()
+              except Exception:ftp.close()
+          PY
+      - name: Upload original stylesheet backup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-jannah-child-style-before-cls
+          path: ptscps-jannah-child-style-before-cls.css
+          retention-days: 30
+          if-no-files-found: warn
