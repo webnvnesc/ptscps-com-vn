@@ -32,6 +32,7 @@ jobs:
             max_ratio_clip:sel+'{max-height:calc((100vw - 30px) * .528443)!important;overflow:hidden!important;}',
             aspect_auto_clip:sel+'{height:auto!important;aspect-ratio:668/353;overflow:hidden!important;}'
           };
+          async function main(){
           const browser=await chromium.launch({headless:true});
           async function measure(name,slow) {
             const context=await browser.newContext({viewport:{width:412,height:823},isMobile:true,hasTouch:true,deviceScaleFactor:1.75});
@@ -73,5 +74,7 @@ jobs:
             await measure('baseline',true);
             await measure('fixed_ratio_clip',true);
           }finally {await browser.close();}
+          }
+          main().catch(e=>{console.error(e);process.exitCode=1;});
           NODE
           node experiment.cjs
