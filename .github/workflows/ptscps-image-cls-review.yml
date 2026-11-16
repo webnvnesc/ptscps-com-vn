@@ -1,0 +1,36 @@
+name: PTSCPS desktop archive image CLS paired verification (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-image-cls-review.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare eager and lazy archive images with shift sources
+        run: |
+          node --check scripts/ptscps-image-cls-review.cjs
+          node scripts/ptscps-image-cls-review.cjs > image-cls.log 2>&1 || { tail -n 25 image-cls.log; exit 1; }
+          grep '^RUN ' image-cls.log | cut -c1-3600
+      - name: Archive screenshots and shift evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-image-cls-review
+          path: |
+            image-cls-review/
+            image-cls.log
+          retention-days: 10
+          if-no-files-found: warn
