@@ -2,7 +2,7 @@ name: PTSCPS Jannah featured template fast probe (read only)
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/ptscps-featured-fast-probe.yml"]
+    paths: [".github/workflows/ptscps-featured-fast-probe.yml", "scripts/ptscps-featured-fast-probe.py"]
   workflow_dispatch:
 permissions:
   contents: read
