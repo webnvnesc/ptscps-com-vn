@@ -1,0 +1,30 @@
+name: PTSCPS inspect compression HTTP cache headers and waterfall
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-http-transport-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit real CSS HTTP headers sizes and timing
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-http-transport-audit.py > transport.log 2>&1 || { tail -n 38 transport.log; exit 1; }
+          grep '^SUMMARY ' transport.log | cut -c1-1200
+          grep '^TRANSPORT ' transport.log | grep '"Hosted bundle"' | cut -c1-1800 || true
+      - name: Upload audit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-css-http-transport-audit
+          path: |
+            transport-results/
+            transport.log
+          retention-days: 10
+          if-no-files-found: warn
