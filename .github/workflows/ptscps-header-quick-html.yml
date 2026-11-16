@@ -1,0 +1,28 @@
+name: PTSCPS quick anonymous HTML cache vs header fingerprint
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-header-quick-html.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare Jannah logo/search across 12 uncached-browser HTTP requests
+        shell: bash
+        run: |
+          python3 -m py_compile scripts/ptscps-header-quick-html.py
+          python3 -u scripts/ptscps-header-quick-html.py > header-html.log 2>&1 || { tail -n 20 header-html.log; exit 1; }
+          grep '^HTML_SUMMARY' header-html.log
+          grep '^HTML_COMPARE' header-html.log | cut -c1-1700
+      - name: Save results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-header-quick-html
+          path: header-html.log
+          retention-days: 10
