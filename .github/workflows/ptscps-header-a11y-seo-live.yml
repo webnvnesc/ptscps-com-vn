@@ -66,3 +66,5 @@ jobs:
           if-no-files-found: ignore
 
 # Recheck after correcting the H4 inside the invitation-card excerpt.
+
+# Re-run after normalizing every Elementor post title to H2 in invitation archive.
