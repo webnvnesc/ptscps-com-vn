@@ -1,0 +1,37 @@
+name: PTSCPS verify extension error is not website JS
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-extension-error-isolation.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install clean Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect JS errors and injected onboarding scripts
+        shell: bash
+        run: |
+          node --check scripts/ptscps-extension-error-isolation.cjs
+          node scripts/ptscps-extension-error-isolation.cjs > extension-isolation.log 2>&1 || { tail -n 25 extension-isolation.log; exit 1; }
+          grep '^EXTENSION_ISOLATION' extension-isolation.log | cut -c1-3900
+      - name: Archive browser samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-extension-error-isolation
+          path: extension-isolation.log
+          retention-days: 10
+          if-no-files-found: warn
