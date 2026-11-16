@@ -1,0 +1,35 @@
+name: PTSCPS plain URLs SR7 JS cache verification
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-plain-urls-qa.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Check anonymous normal pages with HTML cache
+        shell: bash
+        run: |
+          node --check scripts/ptscps-sr7-plain-urls-qa.cjs
+          node scripts/ptscps-sr7-plain-urls-qa.cjs > plain-sr7-js-qa.log 2>&1 || { tail -n 20 plain-sr7-js-qa.log; exit 1; }
+          grep '^SR7_PLAIN' plain-sr7-js-qa.log | cut -c1-2000
+      - name: Archive normal URL proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-plain-sr7-qa
+          path: plain-sr7-js-qa.log
+          retention-days: 10
