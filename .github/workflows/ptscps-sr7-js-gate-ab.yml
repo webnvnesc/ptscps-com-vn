@@ -1,0 +1,38 @@
+name: PTSCPS browser-only SR7 JS removal on non-slider pages
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-js-gate-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Browser A/B with runtime SR7 JS blocked on non-slider routes only
+        shell: bash
+        run: |
+          node --check scripts/ptscps-sr7-js-gating-browser-ab.cjs
+          node scripts/ptscps-sr7-js-gating-browser-ab.cjs > sr7-js-gate-ab.log 2>&1 || { tail -n 30 sr7-js-gate-ab.log; exit 1; }
+          grep -E '^SR7_JS_GATE_PAIR' sr7-js-gate-ab.log | cut -c1-6000
+      - name: Archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-js-gate-ab
+          path: |
+            sr7-js-gate-ab.log
+            sr7-js-gate-ab.json
+          retention-days: 12
+          if-no-files-found: warn
