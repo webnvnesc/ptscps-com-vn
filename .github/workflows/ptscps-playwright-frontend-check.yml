@@ -1,0 +1,129 @@
+name: Playwright frontend smoke check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-playwright-frontend-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-smoke:
+    name: Browser smoke test on desktop and mobile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      TARGET_URL: https://ptscps.com.vn/
+    steps:
+      - name: Check out diagnostic repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright and Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+
+      - name: Run read-only browser smoke test
+        shell: bash
+        run: |
+          cat > frontend-smoke.cjs <<'NODE'
+          const { chromium, devices } = require('playwright');
+          const fs = require('fs');
+          const path = require('path');
+
+          const url = process.env.TARGET_URL;
+          const reportDir = path.resolve('playwright-results');
+          fs.mkdirSync(reportDir, { recursive: true });
+          const results = [];
+
+          async function check(browser, name, options) {
+            const context = await browser.newContext({
+              ...options,
+              ignoreHTTPSErrors: false,
+            });
+            const page = await context.newPage();
+            let scriptErrors = 0;
+            let consoleErrors = 0;
+            page.on('pageerror', () => { scriptErrors += 1; });
+            page.on('console', (message) => {
+              if (message.type() === 'error') consoleErrors += 1;
+            });
+            const result = { device: name, navigated: false };
+            try {
+              const response = await page.goto(url, {
+                waitUntil: 'domcontentloaded',
+                timeout: 45000
+              });
+              const status = response ? response.status() : 0;
+              await page.waitForTimeout(1500);
+              const title = await page.title();
+              const textLength = await page.locator('body').innerText({ timeout: 10000 }).then(x => x.trim().length);
+              await page.screenshot({
+                path: path.join(reportDir, name + '.png'),
+                fullPage: true,
+                animations: 'disabled',
+                timeout: 20000
+              });
+              Object.assign(result, {
+                navigated: true,
+                httpStatus: status,
+                finalOrigin: new URL(page.url()).origin,
+                title: title.slice(0, 150),
+                bodyTextLength: textLength,
+                scriptErrors,
+                consoleErrors,
+                screenshot: name + '.png',
+                passed: status >= 200 && status < 400 && title.length > 0 && textLength > 50,
+              });
+            } catch (err) {
+              result.passed = false;
+              result.error = err.name + ': ' + String(err.message).split('\n')[0].slice(0, 260);
+            } finally {
+              await context.close();
+            }
+            results.push(result);
+            console.log(name.toUpperCase() + ': ' + JSON.stringify(result));
+          }
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            try {
+              await check(browser, 'desktop', { viewport: { width: 1440, height: 900 } });
+              await check(browser, 'mobile', {
+                ...devices['iPhone 13'],
+                defaultBrowserType: undefined
+              });
+            } finally {
+              await browser.close();
+              fs.writeFileSync(path.join(reportDir, 'report.json'), JSON.stringify(results, null, 2));
+            }
+            if (results.length !== 2 || results.some(item => !item.passed)) {
+              console.error('FAIL: At least one browser smoke test failed.');
+              process.exitCode = 1;
+            } else {
+              console.log('SUCCESS: Playwright opened the frontend on desktop and mobile and captured screenshots.');
+            }
+          })().catch((err) => {
+            console.error('FAIL: Browser startup or execution error:', err.name, String(err.message).split('\n')[0]);
+            process.exitCode = 1;
+          });
+          NODE
+          node frontend-smoke.cjs
+
+      - name: Upload Playwright screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-playwright-smoke
+          path: playwright-results/
+          if-no-files-found: warn
+          retention-days: 7
