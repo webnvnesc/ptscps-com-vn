@@ -2,7 +2,7 @@ name: PTSCPS conditional SR7 JS canary FTPS and browser QA
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/ptscps-sr7-js-canary.yml"]
+    paths: [".github/workflows/ptscps-sr7-js-canary.yml", "scripts/ptscps-sr7-conditional-canary-qa.cjs"]
   workflow_dispatch:
 permissions:
   contents: read
