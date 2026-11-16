@@ -1,0 +1,38 @@
+name: PTSCPS audit frontend API requests across page types
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-frontend-api-inventory.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Capture frontend REST and AJAX calls anonymously
+        shell: bash
+        run: |
+          node --check scripts/ptscps-frontend-api-inventory.cjs
+          node scripts/ptscps-frontend-api-inventory.cjs > frontend-api-audit.log 2>&1 || { tail -n 30 frontend-api-audit.log; exit 1; }
+          grep '^FRONT_API_SUMMARY' frontend-api-audit.log | cut -c1-25000
+      - name: Store read-only API inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-frontend-api-inventory
+          path: |
+            frontend-api-audit.log
+            frontend-api-inventory.json
+          retention-days: 14
+          if-no-files-found: warn
