@@ -1,0 +1,44 @@
+name: PTSCPS Jannah feature CSS A/B browser only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-feature-css-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [412, 1440]
+    env:
+      TEST_WIDTH: ${{ matrix.width }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser and CSS selector parser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright postcss postcss-selector-parser
+          npx playwright install --with-deps chromium
+      - name: Compare original vs feature-reduced style.css in browser only
+        shell: bash
+        run: |
+          node --check scripts/ptscps-feature-css-ab.cjs
+          mkdir -p feature-ab-${{ matrix.width }}
+          node scripts/ptscps-feature-css-ab.cjs > feature-ab.log 2>&1 || { tail -n 40 feature-ab.log; exit 1; }
+          grep -E '^(VARIANT|STATS|FATAL)' feature-ab.log | cut -c1-6000
+      - name: Store A/B screens and metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-feature-css-ab-${{ matrix.width }}
+          path: |
+            feature-ab-${{ matrix.width }}/
+            feature-ab.log
+          retention-days: 10
+          if-no-files-found: warn
