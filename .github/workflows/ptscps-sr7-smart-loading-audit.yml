@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/ptscps-sr7-smart-loading-audit.yml"
+      - "scripts/ptscps-sr7-smart-loading-audit.cjs"
   workflow_dispatch:
 permissions:
   contents: read
