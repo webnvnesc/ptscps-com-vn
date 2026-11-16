@@ -17,17 +17,25 @@ Các trang bên dưới là nguồn thông tin trực tiếp trên website PTSC 
 - [Thiết kế, mua sắm, gia công, chế tạo](https://ptscps.com.vn/dich-vu/dich-vu-thiet-ke-mua-sam-gia-cong-che-tao%E2%80%8B): Dịch vụ EPCI và các hạng mục chế tạo, lắp đặt, chạy thử.
 - [Sửa chữa, bảo dưỡng thiết bị và công trình công nghiệp](https://ptscps.com.vn/dich-vu/dich-vu-sua-chua-bao-duong-cac-thiet-bi-va-cong-trinh-cong-nghiep): Bảo dưỡng, sửa chữa máy móc, thiết bị và công trình.
 
+## HSEQ
+
+- [HSEQ](https://ptscps.com.vn/hseq): Thông tin về sức khỏe, an toàn, môi trường và chất lượng.
+- [Chính sách HSEQ](https://ptscps.com.vn/hseq/chinh-sach-skatmtcl): Chính sách an toàn, sức khỏe, môi trường và chất lượng của PTSC PPS.
+
 ## Tin tức và hoạt động
 
 - [Tin tức](https://ptscps.com.vn/tin-tuc): Các chủ đề tin tức và thông tin hoạt động.
-- [Hoạt động của công ty](https://ptscps.com.vn/c/hoat-dong-cua-cong-ty): Tin tức về các hoạt động và sự kiện của PTSC PPS.
+- [Hoạt động của công ty](https://ptscps.com.vn/c/tin-tuc/hoat-dong-cua-cong-ty): Tin tức về các hoạt động và sự kiện của PTSC PPS.
+- [Dầu khí trong nước và khu vực](https://ptscps.com.vn/c/tin-tuc/dau-khi-trong-nuoc-va-khu-vuc): Thông tin về lĩnh vực dầu khí.
 
 ## Thông tin bổ sung
 
 - [Thư viện hình ảnh PPS](https://ptscps.com.vn/thu-vien-pps): Hình ảnh các hoạt động và công trình.
 - [Thư mời chào giá](https://ptscps.com.vn/thu-moi-chao-gia): Thông báo liên quan đến chào giá.
-- [Tuyển dụng](https://ptscps.com.vn/tuyen-dung): Thông tin tuyển dụng.
+- [Tuyển dụng](https://ptscps.com.vn/c/tuyen-dung): Thông tin tuyển dụng.
 - [Liên hệ](https://ptscps.com.vn/lien-he): Địa chỉ, điện thoại, biểu mẫu liên hệ của PTSC PPS.
+- [Sitemap](https://ptscps.com.vn/sitemap): Trang danh sách nội dung website.
+- [XML sitemap](https://ptscps.com.vn/sitemap_index.xml): Sơ đồ URL dành cho bộ máy tìm kiếm.
 
 ## Lưu ý về nguồn dữ liệu
 
