@@ -1,0 +1,30 @@
+name: PTSCPS compare SR7 REST against core WP REST and static (read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-rest-vs-static-benchmark.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check read-only diagnostic
+        run: python3 -m py_compile scripts/ptscps-rest-vs-static-benchmark.py
+      - name: Probe HTTP2 repeated connection-resident requests
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-rest-vs-static-benchmark.py > rest-vs-static.log 2>&1 || { tail -n 40 rest-vs-static.log; exit 1; }
+          grep -E '^REST_LATENCY_(SUMMARY|CONCLUSION|CYCLE_ERROR)' rest-vs-static.log | cut -c1-3500
+      - name: Archive detailed samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-rest-vs-static
+          path: rest-vs-static.log
+          retention-days: 10
+          if-no-files-found: warn
