@@ -1,0 +1,30 @@
+name: PTSCPS inspect SR7 slides 2 and 3 REST responses (read only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ptscps-sr7-payload-comparison.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check
+        run: python3 -m py_compile scripts/ptscps-sr7-payload-comparison.py
+      - name: Fetch exact public SR7 API slide responses twice
+        shell: bash
+        run: |
+          python3 -u scripts/ptscps-sr7-payload-comparison.py > sr7-response-comparison.log 2>&1 || { tail -n 20 sr7-response-comparison.log; exit 1; }
+          grep -E '^SR7_(RESPONSE|FETCH_ERROR|COMPARISON)' sr7-response-comparison.log | cut -c1-19000
+      - name: Archive response comparisons
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-slide-response-comparison
+          path: sr7-response-comparison.log
+          retention-days: 7
+          if-no-files-found: warn
