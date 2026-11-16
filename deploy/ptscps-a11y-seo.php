@@ -72,6 +72,18 @@ function ptscps_a11y_seo_html( $html ) {
         );
     }
 
+    // Once article has its native semantic role, do not leave its surrounding
+    // Elementor grid declaring a role=list with no listitem children.
+    if ( false !== strpos( $html, 'elementor-posts-container' ) ) {
+        $html = preg_replace_callback(
+            '~<div\b[^>]*\belementor-posts-container\b[^>]*>~i',
+            static function ( $m ) {
+                return preg_replace( '~\s+role\s*=\s*(["\'])list\1~i', '', $m[0] );
+            },
+            $html
+        );
+    }
+
     // Elementor Posts sometimes injects an invalid listitem role on <article>.
     // Keep the article landmark semantics and all its contents/classes unchanged.
     if ( false !== strpos( $html, 'elementor-post' ) ) {
@@ -135,11 +147,17 @@ add_action(
     static function () {
         if ( is_admin() || is_preview() || is_feed() || is_404()
             || isset( $_GET['elementor-preview'] )
-            || defined( 'WPSEO_VERSION' ) || defined( 'RANK_MATH_VERSION' )
-            || defined( 'AIOSEO_VERSION' ) || function_exists( 'aioseo' ) ) {
+            ) {
             return;
         }
 
+        // Audited routes have no description even when SEO plugin code is loaded.
+        // Scope fallback to these verified pages to avoid duplicate descriptions
+        // on other URLs that may have independent SEO metadata.
+        if ( ! is_front_page() && ! is_page( array( 'dich-vu', 'lien-he' ) )
+            && ! is_category( 'hoat-dong-cua-cong-ty' ) ) {
+            return;
+        }
         $description = '';
         if ( is_front_page() ) {
             $description = 'Công ty Cổ phần Dịch vụ Khai thác Dầu khí PTSC (PTSC PPS) cung cấp dịch vụ vận hành, bảo dưỡng FPSO, FSO, MOPU và các công trình dầu khí.';
