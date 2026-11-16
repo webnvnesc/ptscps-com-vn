@@ -109,7 +109,7 @@ jobs:
                   info:{sliderOuter:sl?.outerHTML.slice(0,4500),introOuter:intro?.outerHTML.slice(0,1000),
                     bodyClass:document.body.className,
                     childStyle:[...document.querySelectorAll('link[rel=stylesheet]')].map(x=>x.href).filter(x=>x.includes('jannah-child')),
-                    allSliders:[...document.querySelectorAll('sr7-module, sr7-module-wrap, rs-module, rs-module-wrap')].slice(0,6).map(x=>({tag:x.tagName,html:x.outerHTML.slice(0,2000)}))}
+                    allSliders:[...document.querySelectorAll('sr7-module, sr7-module-wrap, rs-module, rs-module-wrap')].slice(0,6).map(x=>({tag:x.tagName,html:x.outerHTML.slice(0,2000)}))
                   }};
               });
               console.log('NET',net,'HTTP',response.status(),'SAMPLES',info.snap.length,'SHIFTS',JSON.stringify(info.shift).slice(0,3000));
