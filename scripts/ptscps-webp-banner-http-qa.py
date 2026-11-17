@@ -24,6 +24,14 @@ def image(blob):
     im=Image.open(io.BytesIO(blob));im.load()
     return im.format,[im.width,im.height]
 def main():
+    if len(sys.argv)==2 and sys.argv[1]=="--direct":
+        for n in FILES:
+            st,h,b=fetch(URL+n+".webp","image/webp")
+            fmt,dims=image(b)
+            if st!=200 or fmt!="WEBP" or dims!=[800,500]:
+                raise RuntimeError("Preflight WebP direct URL failure "+n)
+            print("WEBP_PILOT_DIRECT_OK "+json.dumps({"image":n,"bytes":len(b),"type":mime(h)}),flush=True)
+        return
     result=[]
     for n in FILES:
         # Cache-busting query parameters prevent stale intermediate cache from
