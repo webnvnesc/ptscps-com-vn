@@ -1,0 +1,65 @@
+name: PTSCPS dynamic WebP for future WordPress images and SR7 (reversible)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-webp-autogen-deploy.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-image-pilot
+  cancel-in-progress: false
+jobs:
+  deploy-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Pillow for synthetic smoke test
+        run: python3 -m pip install --disable-pip-version-check pillow
+      - name: Validate exact file sources and PHP syntax
+        run: |
+          python3 -m py_compile scripts/ptscps-webp-autogen-deploy.py scripts/ptscps-webp-autogen-http-qa.py
+          php -l deploy/ptscps-webp-autogen.php
+          node --check scripts/ptscps-webp-banner-live-qa.cjs
+          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
+      - name: Stage WP upload converter and tiny JPEG/PNG test assets
+        run: python3 -u scripts/ptscps-webp-autogen-deploy.py prepare
+      - name: Enable uploads-wide negotiation and remove ONLY owned old banner rewrite
+        run: python3 -u scripts/ptscps-webp-autogen-deploy.py enable
+      - name: Validate dynamic JPEG/PNG and three native slider URLs
+        id: http
+        run: |
+          python3 -u scripts/ptscps-webp-autogen-http-qa.py
+          python3 -u scripts/ptscps-webp-banner-http-qa.py
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Verify real SR7 poster, first-banner WebP, CLS and Elementor on phones and desktops
+        id: browser
+        run: |
+          node scripts/ptscps-webp-banner-live-qa.cjs > ptscps-webp-auto-browser.log 2>&1 || { tail -n 26 ptscps-webp-auto-browser.log; exit 1; }
+          grep '^WEBP_BROWSER_QA' ptscps-webp-auto-browser.log | cut -c1-11000
+      - name: Delete only the exact synthetic test images
+        id: cleanup
+        run: python3 -u scripts/ptscps-webp-autogen-deploy.py cleanup
+      - name: Automatically restore old rules and deactivate converter if any step fails
+        if: failure()
+        run: python3 -u scripts/ptscps-webp-autogen-deploy.py rollback
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-webp-automatic-live-qa
+          path: |
+            ptscps-webp-auto-browser.log
+            ptscps-webp-banner-live-qa/
+          retention-days: 14
+          if-no-files-found: ignore
