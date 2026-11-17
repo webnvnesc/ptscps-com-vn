@@ -1,0 +1,66 @@
+name: PTSCPS live trial automatic first-slide CSS poster for Speed Index
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-first-poster-live.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate code and ops before production write
+        run: |
+          php -l deploy/ptscps-sr7-first-poster.php
+          python3 -m py_compile scripts/ptscps-sr7-first-poster-deploy.py scripts/ptscps-sr7-first-poster-rollback.py
+          node --check scripts/ptscps-sr7-first-poster-live-qa.cjs
+      - name: Install Chrome for rendered poster and CLS QA
+        run: |
+          npm install --no-save --no-audit --no-fund playwright pngjs
+          npx playwright install --with-deps chromium
+      - name: Deploy owned MU-plugin with exact file checksum and backup
+        run: |
+          python3 -u scripts/ptscps-sr7-first-poster-deploy.py
+      - name: Clear HTML cache using WP Super Cache admin action
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs > sr7-poster-cache-purge.log 2>&1 || { tail -n 28 sr7-poster-cache-purge.log; exit 1; }
+          grep '^WPSC_' sr7-poster-cache-purge.log | cut -c1-1500
+      - name: Verify first slide poster painted without JS and slider works with JS
+        run: |
+          node scripts/ptscps-sr7-first-poster-live-qa.cjs > sr7-poster-live-qa.log 2>&1 || { tail -n 28 sr7-poster-live-qa.log; exit 1; }
+          grep '^POSTER_LIVE_SUMMARY' sr7-poster-live-qa.log
+      - name: Restore the previous plugin if any step failed
+        if: failure()
+        run: |
+          python3 -u scripts/ptscps-sr7-first-poster-rollback.py
+      - name: Purge cached HTML if rollback ran
+        if: failure()
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs || true
+      - name: Archive rollback file and all rendered checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-sr7-first-poster-rollout-evidence
+          path: |
+            sr7-poster-before.php
+            sr7-poster-cache-purge.log
+            sr7-poster-live-qa.log
+            sr7-poster-live-results.json
+          retention-days: 30
+          if-no-files-found: ignore
