@@ -2,7 +2,7 @@ name: PTSCPS secure FTPS Apache log capability (read-only)
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/ptscps-ftp-error-log-capability.yml"]
+    paths: [".github/workflows/ptscps-ftp-error-log-capability.yml", "scripts/ptscps-ftp-error-log-capability.py"]
   workflow_dispatch:
 permissions:
   contents: read
