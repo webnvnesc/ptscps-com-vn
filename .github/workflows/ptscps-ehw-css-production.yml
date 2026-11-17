@@ -1,0 +1,70 @@
+name: PTSCPS Elementor homepage widget CSS bundle safe production trial
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-ehw-css-production.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 32
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preflight PHP Python JS syntax
+        run: |
+          php -l deploy/ptscps-elementor-home-widgets-bundle.php
+          python3 -m py_compile scripts/ptscps-ehw-stage-and-deploy.py
+          node --check scripts/ptscps-ehw-production-qa.cjs
+          node --check scripts/ptscps-wpsc-clear-html-cache.cjs
+      - name: Install browser testing dependencies
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Build actual production Elementor CSS and deploy dedicated fail-open bundle
+        run: |
+          python3 -u scripts/ptscps-ehw-stage-and-deploy.py deploy > ehw-deploy.log 2>&1 || { tail -n 25 ehw-deploy.log; exit 1; }
+          grep -E '^EHW_(BUILD|PRODUCTION_INSTALLED)' ehw-deploy.log | cut -c1-3800
+      - name: Clear WP Super Cache HTML for public verification
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs > ehw-purge.log 2>&1 || { tail -n 20 ehw-purge.log; exit 1; }
+          grep '^WPSC_PURGE_CLICKED' ehw-purge.log
+      - name: Verify real mobile desktop homepage CSS and other pages unchanged
+        run: |
+          node scripts/ptscps-ehw-production-qa.cjs > ehw-qa.log 2>&1 || { tail -n 35 ehw-qa.log; exit 1; }
+          grep '^EHW_QA_SUMMARY' ehw-qa.log
+      - name: Remove only the newly deployed widget bundle if any step fails
+        if: failure()
+        run: python3 -u scripts/ptscps-ehw-stage-and-deploy.py rollback
+      - name: Purge HTML after rollback if needed
+        if: failure()
+        run: node scripts/ptscps-wpsc-clear-html-cache.cjs || true
+      - name: Archive checksums and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-ehw-widget-css-trial
+          path: |
+            ptscps-ehw-built.css
+            ptscps-ehw-built.json
+            ptscps-ehw-deploy-state.json
+            ptscps-ehw-plugin-before.php
+            ptscps-ehw-production-qa.json
+            ehw-deploy.log
+            ehw-purge.log
+            ehw-qa.log
+          retention-days: 30
+          if-no-files-found: ignore
