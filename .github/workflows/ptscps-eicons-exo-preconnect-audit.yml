@@ -1,0 +1,35 @@
+name: PTSCPS audit eicons Exo and preconnect (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-eicons-exo-preconnect-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect eicons, tielabs, preconnect and Exo on homepage and internal pages
+        run: |
+          node --check scripts/ptscps-eicons-exo-preconnect-readonly-audit.cjs
+          node scripts/ptscps-eicons-exo-preconnect-readonly-audit.cjs > ptscps-icon-font-audit.log 2>&1 || { tail -n 30 ptscps-icon-font-audit.log; exit 1; }
+          grep '^FONT_HEAD_AUDIT_SUMMARY' ptscps-icon-font-audit.log | cut -c1-18000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-eicons-exo-preconnect-readonly
+          path: |
+            ptscps-eicons-exo-preconnect-readonly-audit/
+            ptscps-icon-font-audit.log
+          retention-days: 14
+          if-no-files-found: ignore
