@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS SR7 First Slide CSS Poster
  * Description: Render the first current Slider Revolution banner image as CSS immediately, with a no-JS fallback.
- * Version: 1.0.0
+ * Version: 1.0.1
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -23,8 +23,7 @@ function ptscps_sr7_poster_widget( $html, $widget ) {
     if ( ! ptscps_sr7_poster_allowed() || ! is_string( $html )
         || false === strpos( $html, '<sr7-module' )
         || false === strpos( $html, '<sr7-slide' )
-        || ! is_object( $widget ) || ! method_exists( $widget, 'get_name' )
-        || 'slider_revolution' !== $widget->get_name() ) {
+        ) {
         return $html;
     }
     if ( ! preg_match( '~<sr7-module\b[^>]*\bdata-id="1"[^>]*>~i', $html, $module, PREG_OFFSET_CAPTURE ) ) {
@@ -68,6 +67,15 @@ function ptscps_sr7_poster_widget( $html, $widget ) {
     return substr_replace( $html, $new, $offset, strlen( $tag ) );
 }
 add_filter( 'elementor/widget/render_content', 'ptscps_sr7_poster_widget', 20, 2 );
+// Slider Revolution's Elementor widget can print its shortcode output outside
+// the widget render_content return buffer. Parse the final Elementor/page content
+// as well, while keeping the transformation idempotent via the poster marker.
+add_filter( 'the_content', static function ( $html ) {
+    return ptscps_sr7_poster_widget( $html, null );
+}, PHP_INT_MAX );
+add_filter( 'elementor/frontend/the_content', static function ( $html ) {
+    return ptscps_sr7_poster_widget( $html, null );
+}, PHP_INT_MAX );
 
 /**
  * A banner image or slide order change must invalidate WordPress HTML cache.
