@@ -40,7 +40,19 @@ jobs:
           grep -E '^EHW_(BUILD|PRODUCTION_INSTALLED)' ehw-deploy.log | cut -c1-3800
       - name: Clear WP Super Cache HTML for public verification
         run: |
-          node scripts/ptscps-wpsc-clear-html-cache.cjs > ehw-purge.log 2>&1 || { tail -n 20 ehw-purge.log; exit 1; }
+          # Admin may intermittently take more than 65s; retry the exact
+          # scoped Delete Cache action without changing WP settings.
+          success=0
+          for attempt in 1 2 3; do
+            if node scripts/ptscps-wpsc-clear-html-cache.cjs > ehw-purge.log 2>&1; then
+              success=1
+              break
+            fi
+            echo "WPSC attempt ${attempt} failed; retrying"
+            tail -n 5 ehw-purge.log
+            sleep 4
+          done
+          if [ "${success}" -ne 1 ]; then exit 1; fi
           grep '^WPSC_PURGE_CLICKED' ehw-purge.log
       - name: Verify real mobile desktop homepage CSS and other pages unchanged
         run: |
