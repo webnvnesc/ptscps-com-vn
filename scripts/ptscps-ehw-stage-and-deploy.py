@@ -109,15 +109,15 @@ def prepare():
         css=public(url).decode("utf-8","replace")
         if len(css)<90:
             raise RuntimeError("CSS unexpectedly small: "+url)
-        # @charset may legally occur at the beginning of each standalone CSS.
-        # It cannot appear in the middle of the concatenated stylesheet.
-        # UTF-8 is preserved by the builder; reject any other encoding.
+        # Elementor Pro can ship a UTF-8 @charset after its license banner,
+        # or as an intermediate directive. In concatenated UTF-8 stylesheets
+        # these are not legal once preceded by another stylesheet. Strip only
+        # explicit UTF-8 declarations; reject any other charset declaration.
         css=css.lstrip("\ufeff")
-        charset=re.match(r'^\s*@charset\s+([\x22\x27])utf-8\1\s*;',css,re.I)
-        if charset:
-            css=css[charset.end():]
+        utf8_pattern=r"""@charset\s+(["'])utf-8\1\s*;"""
+        css=re.sub(utf8_pattern,"",css,flags=re.I)
         if re.search(r"@charset\s",css,re.I):
-            raise RuntimeError("Unsupported or non-leading CSS charset in "+url)
+            raise RuntimeError("Unexpected charset declaration in "+url)
         sources[handle]=url
         chunks.append("/* "+handle+" */\n"+rebase(css,url)+"\n")
     joined=("\n".join(chunks)).encode("utf-8")
