@@ -23,7 +23,7 @@ const modes=[{name:'desktop',width:1440,mobile:false},{name:'mobile',width:412,m
      await page.evaluate(()=>document.fonts.ready);
      const metrics=await page.evaluate(()=>{
       const samples=sel=>{const e=document.querySelector(sel);if(!e)return null;const s=getComputedStyle(e),r=e.getBoundingClientRect();return {family:s.fontFamily,width:Math.round(r.width),height:Math.round(r.height)}};
-      return {htmlClasses:document.documentElement.className,active:document.documentElement.classList.contains('wf-active'),
+      return {htmlClasses:document.documentElement.className,active:document.body.classList.contains('ptscps-exo-direct'),
        docFont:document.fonts.check('400 16px Exo'),
        body:samples('body'),heading:samples('h1,h2'),menu:samples('#main-nav .main-menu > ul > li > a'),
        logo:samples('#logo'),
