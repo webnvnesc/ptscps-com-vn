@@ -1,0 +1,39 @@
+name: PTSCPS homepage CSS and JS parallel waterfall current
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-home-css-js-parallel-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Measure homepage cold-start CSS JS request overlap
+        run: |
+          node --check scripts/ptscps-home-css-js-parallel-audit.cjs
+          node scripts/ptscps-home-css-js-parallel-audit.cjs > css-js-waterfall.log 2>&1 || { tail -n 35 css-js-waterfall.log; exit 1; }
+          grep '^WATERFALL_SUMMARY' css-js-waterfall.log | cut -c1-11000
+          grep '^WATERFALL_OVERALL' css-js-waterfall.log | cut -c1-15000
+      - name: Archive full browser request waterfall
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-home-css-js-parallel-timing
+          path: |
+            pt scps-css-js-parallel-check/
+            pt scps-home-css-js-parallel-check/
+            ptscps-css-js-parallel-check/
+            css-js-waterfall.log
+          retention-days: 14
+          if-no-files-found: ignore
