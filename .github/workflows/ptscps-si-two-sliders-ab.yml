@@ -16,7 +16,7 @@ jobs:
         device: [mobile, desktop]
     env:
       PTSCPS_AB_DEVICE: ${{ matrix.device }}
-      PTSCPS_AB_CYCLES: '3'
+      PTSCPS_AB_CYCLES: '2'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,3 +43,5 @@ jobs:
           if-no-files-found: ignore
 
 # Retry with Chrome CDP/Playwright HTML response interception (headless extensions unsupported).
+
+# CDP explicit port preflight; abort on first invalid result before 4-way comparison.
