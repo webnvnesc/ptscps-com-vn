@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: [mobile, desktop]
+        device: [mobile]
     env:
       PTSCPS_AB_DEVICE: ${{ matrix.device }}
       PTSCPS_HARD_CYCLES: '5'
@@ -47,3 +47,5 @@ jobs:
           if-no-files-found: ignore
 
 # Retry transient Chromium NO_FCP up to twice per matched condition.
+
+# Desktop 5-cycle result already archived in run 44124906170; finish missing mobile only.
