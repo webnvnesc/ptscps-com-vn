@@ -17,7 +17,7 @@ source = Path("deploy/" + name).read_bytes()
 state_path = Path("font-head-svg-state.json")
 prior_path = Path("font-head-svg-before.php")
 if (b"Plugin Name: PTSCPS Google Font Hints + Customer Carousel SVG Trial" not in source
-        or b"Version: 1.0.0" not in source):
+        or b"Version: 1.0.1" not in source):
     raise RuntimeError("Unrecognized/unsupported plugin source")
 url = os.environ["FTP_SERVER"]
 parsed = urlsplit(url if "://" in url else "//" + url)
