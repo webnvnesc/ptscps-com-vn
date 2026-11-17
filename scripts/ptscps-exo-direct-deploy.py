@@ -8,7 +8,7 @@ MU=ROOT+"/wp-content/mu-plugins"
 NAME="ptscps-exo-css-direct.php"
 PATH=MU+"/"+NAME
 SRC=Path("deploy/ptscps-exo-css-direct.php").read_bytes()
-if b"Plugin Name: PTSCPS Exo Font CSS Direct" not in SRC or b"Version: 1.0.2" not in SRC:
+if b"Plugin Name: PTSCPS Exo Font CSS Direct" not in SRC or b"Version: 1.0.3" not in SRC:
  raise RuntimeError("Unrecognized source plugin")
 u=os.environ["FTP_SERVER"];u=urlsplit(u if "://" in u else "//"+u)
 f=ftplib.FTP_TLS(timeout=28);f.connect(u.hostname,u.port or 21,timeout=28)
