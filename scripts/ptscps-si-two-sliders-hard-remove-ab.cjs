@@ -260,10 +260,19 @@ async function run(mode,cycle,baseHtml){
  ];
  for(let i=0;i<cycles;i++){
   for(const mode of rotated[i]){
-   const row=await run(mode,i+1,html);
+   let row=null;
+   for(let attempt=1;attempt<=3;attempt++){
+     row=await run(mode,i+1,html);
+     row.attempt=attempt;
+     if(row.ok)break;
+     // A transient NO_FCP or browser startup failure is a measurement
+     // failure, never evidence of site performance. Retry same paired arm.
+     console.log('SLIDERS_HARD_AB_RETRY '+JSON.stringify({device,cycle:i+1,mode,attempt,error:row.error?.slice(0,280)}));
+     if(attempt<3)await new Promise(resolve=>setTimeout(resolve,1200));
+   }
    rows.push(row);
    fs.writeFileSync(path.join(dir,'results.json'),JSON.stringify(rows,null,2));
-   if(!row.ok)throw Error('Abort remaining A/B cases; first invalid measurement '+mode+' '+(row.error||''));
+   if(!row.ok)throw Error('Three invalid measurements for '+mode+': '+(row.error||''));
   }
  }
  const valid=rows.filter(x=>x.ok);
