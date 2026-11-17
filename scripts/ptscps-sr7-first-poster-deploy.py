@@ -8,7 +8,7 @@ MU=ROOT+"/wp-content/mu-plugins"
 NAME="ptscps-sr7-first-poster.php"
 PATH=MU+"/"+NAME
 SRC=Path("deploy/ptscps-sr7-first-poster.php").read_bytes()
-if b"Plugin Name: PTSCPS SR7 First Slide CSS Poster" not in SRC or b"Version: 1.0.1" not in SRC:
+if b"Plugin Name: PTSCPS SR7 First Slide CSS Poster" not in SRC or b"Version: 1.0.2" not in SRC:
  raise RuntimeError("Unrecognized source plugin")
 u=os.environ["FTP_SERVER"];u=urlsplit(u if "://" in u else "//"+u)
 f=ftplib.FTP_TLS(timeout=28);f.connect(u.hostname,u.port or 21,timeout=28)
