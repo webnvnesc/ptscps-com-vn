@@ -40,3 +40,5 @@ jobs:
             sr7-lcp-gate.log
           retention-days: 14
           if-no-files-found: ignore
+
+# Read-only repeat after CDP screenshot no-JS font-wait fix.
