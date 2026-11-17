@@ -73,3 +73,5 @@ jobs:
             eif-qa.log
           retention-days: 30
           if-no-files-found: ignore
+
+# Retry after news desktop delayed-header settle and strict second-navigation logo gate.
