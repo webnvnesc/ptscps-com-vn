@@ -1,0 +1,24 @@
+name: PTSCPS rollback dynamic WebP to original 3-banner pilot
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-image-pilot
+  cancel-in-progress: false
+jobs:
+  rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Pillow
+        run: python3 -m pip install --disable-pip-version-check pillow
+      - name: Restore exact previous uploads rules and disable only dynamic WebP converter
+        run: |
+          python3 -u scripts/ptscps-webp-autogen-deploy.py rollback
+          python3 -u scripts/ptscps-webp-banner-http-qa.py
