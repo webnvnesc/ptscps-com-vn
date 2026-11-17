@@ -1,0 +1,42 @@
+name: PTSCPS Chrome full-page HTTP1 vs HTTP2 A/B (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-browser-protocol-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [desktop, mobile]
+    env:
+      PROTOCOL_DEVICE: ${{ matrix.device }}
+      PROTOCOL_CYCLES: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare protocol modes without changing server
+        run: |
+          node --check scripts/ptscps-browser-protocol-ab.cjs
+          node scripts/ptscps-browser-protocol-ab.cjs > browser-protocol.log 2>&1 || { tail -n 25 browser-protocol.log; exit 1; }
+          grep '^BROWSER_PROTOCOL_DECISION' browser-protocol.log | cut -c1-7000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-browser-protocol-${{ matrix.device }}
+          path: |
+            ptscps-browser-protocol-${{ matrix.device }}/
+            browser-protocol.log
+          retention-days: 12
+          if-no-files-found: ignore
