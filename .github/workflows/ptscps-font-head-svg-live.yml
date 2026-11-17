@@ -62,3 +62,5 @@ jobs:
             font-head-svg-purge.log
           retention-days: 30
           if-no-files-found: ignore
+
+# v1.0.1: head-scoped hint cleanup and CSS SVG mask; strict rendered-font QA.
