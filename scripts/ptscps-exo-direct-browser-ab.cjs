@@ -2,6 +2,7 @@
 const {chromium}=require('playwright');
 const ROOT='https://ptscps.com.vn/';
 const LINK='<link id="ptscps-exo-direct-test" rel="stylesheet" href="https://ptscps.com.vn/wp-content/uploads/ptscps-exo-fonts/exo-direct-v1.css">';
+const STYLE='<style>body.ptscps-exo-direct{font-family:"Exo",sans-serif}body.ptscps-exo-direct .logo-text,body.ptscps-exo-direct h1,body.ptscps-exo-direct h2,body.ptscps-exo-direct h3,body.ptscps-exo-direct h4,body.ptscps-exo-direct h5,body.ptscps-exo-direct h6,body.ptscps-exo-direct .the-subtitle{font-family:"Exo",sans-serif}body.ptscps-exo-direct #main-nav .main-menu > ul > li > a{font-family:"Exo",sans-serif}</style>';
 const replacement=/<script>\s*WebFontConfig\s*=\s*\{[\s\S]*?wf\.src\s*=\s*['"]\/\/ajax\.googleapis\.com\/ajax\/libs\/webfont\/1\/webfont\.js['"];[\s\S]*?\}\)\(\);\s*<\/script>/i;
 (async()=>{
  const browser=await chromium.launch({headless:true,args:['--disable-extensions']});
@@ -22,8 +23,8 @@ const replacement=/<script>\s*WebFontConfig\s*=\s*\{[\s\S]*?wf\.src\s*=\s*['"]\/
       const res=await route.fetch();let html=await res.text();
       replaced=replacement.test(html);
       if(replaced){
-       html=html.replace(replacement,'').replace(/<head\b[^>]*>/i,m=>m+LINK);
-       html=html.replace(/<html\b([^>]*)>/i,(m,attrs)=>'<html'+attrs+' class="wf-active">');
+       html=html.replace(replacement,'').replace(/<head\b[^>]*>/i,m=>m+LINK+STYLE);
+       html=html.replace(/<body\b([^>]*)class=(["'])(.*?)\2/i,(m,attrs,q,cls)=>'<body'+attrs+'class='+q+cls+' ptscps-exo-direct'+q);
       }
       await route.fulfill({response:res,body:html,headers:{...res.headers(),'content-length':String(Buffer.byteLength(html))}});
     });
@@ -34,7 +35,7 @@ const replacement=/<script>\s*WebFontConfig\s*=\s*\{[\s\S]*?wf\.src\s*=\s*['"]\/
      const metrics=await page.evaluate(()=>{
       const n=performance.getEntriesByType('navigation')[0];
       const item=selector=>{const e=document.querySelector(selector);if(!e)return null;const box=e.getBoundingClientRect(),c=getComputedStyle(e);return {font:c.fontFamily,width:Math.round(box.width),height:Math.round(box.height)}};
-      return {fcp:Math.round(performance.getEntriesByType('paint').find(x=>x.name==='first-contentful-paint')?.startTime||0),ttfb:Math.round(n.responseStart),cls:window.__shifts.reduce((a,b)=>a+b,0),heading:item('h1,h2'),menu:item('#main-nav .main-menu > ul > li > a'),logo:item('#logo'),fontStatus:document.fonts.status,exo:document.fonts.check('400 16px Exo'),active:document.documentElement.classList.contains('wf-active'),htmlClass:document.documentElement.className,slider:!!document.querySelector('sr7-module,rs-module')};
+      return {fcp:Math.round(performance.getEntriesByType('paint').find(x=>x.name==='first-contentful-paint')?.startTime||0),ttfb:Math.round(n.responseStart),cls:window.__shifts.reduce((a,b)=>a+b,0),heading:item('h1,h2'),menu:item('#main-nav .main-menu > ul > li > a'),logo:item('#logo'),fontStatus:document.fonts.status,exo:document.fonts.check('400 16px Exo'),active:document.body.classList.contains('ptscps-exo-direct'),htmlClass:document.documentElement.className,slider:!!document.querySelector('sr7-module,rs-module')};
      });
      result={device:cfg.name,mode,http:r.status(),replaced,metrics,requests,errors,resourceFailures};
     }catch(e){result={device:cfg.name,mode,error:String(e).slice(0,250),requests,errors}};
