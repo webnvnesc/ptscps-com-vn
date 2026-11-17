@@ -1,0 +1,38 @@
+name: PTSCPS mobile FCP slider vs static first image A/B (browser only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-fcp-mobile-slider-vs-static.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  trial:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      FCP_PAIRS: '6'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and HTML parser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright cheerio@1.0.0
+          npx playwright install --with-deps chromium
+      - name: Validate and execute paired browser-only mobile simulation
+        run: |
+          node --check scripts/ptscps-fcp-mobile-slider-vs-static.cjs
+          node scripts/ptscps-fcp-mobile-slider-vs-static.cjs > fcp-slider-static-ab.log 2>&1 || { tail -n 30 fcp-slider-static-ab.log; exit 1; }
+          grep '^FCP_STATIC_AB_RESULT' fcp-slider-static-ab.log | cut -c1-14000
+      - name: Archive metrics and errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-mobile-fcp-slider-vs-static
+          path: |
+            fcp-slider-static-ab.log
+            ptscps-fcp-mobile-static-ab/
+          retention-days: 14
+          if-no-files-found: ignore
