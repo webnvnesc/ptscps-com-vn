@@ -1,0 +1,35 @@
+name: PTSCPS customer carousel existing image WebP inventory (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-customer-webp-readonly.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 19
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium for actual customer slider rendering and HTTP negotiation
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Check customer logo sources and WebP image negotiation without site mutations
+        run: |
+          node --check scripts/ptscps-customer-webp-readonly.cjs
+          node scripts/ptscps-customer-webp-readonly.cjs > customer-webp-audit.log 2>&1 || { tail -n 25 customer-webp-audit.log; exit 1; }
+          grep '^CUSTOMER_WEBP_SUMMARY' customer-webp-audit.log | cut -c1-25000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-customer-webp-audit
+          path: |
+            customer-carousel-webp-readonly.json
+            customer-webp-audit.log
+          retention-days: 14
+          if-no-files-found: ignore
