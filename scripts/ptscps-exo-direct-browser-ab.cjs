@@ -21,7 +21,7 @@ const replacement=/<script>\s*WebFontConfig\s*=\s*\{[\s\S]*?wf\.src\s*=\s*['"]\/
       replaced=replacement.test(html);
       if(replaced){
        html=html.replace(replacement,'').replace(/<head\b[^>]*>/i,m=>m+LINK);
-       html=html.replace(/<body\b([^>]*)class=(["'])(.*?)\2/i,(m,attrs,q,cls)=>'<body'+attrs+'class='+q+cls+' wf-active'+q);
+       html=html.replace(/<html\b([^>]*)>/i,(m,attrs)=>'<html'+attrs+' class="wf-active">');
       }
       await route.fulfill({response:res,body:html,headers:{...res.headers(),'content-length':String(Buffer.byteLength(html))}});
     });
@@ -32,7 +32,7 @@ const replacement=/<script>\s*WebFontConfig\s*=\s*\{[\s\S]*?wf\.src\s*=\s*['"]\/
      const metrics=await page.evaluate(()=>{
       const n=performance.getEntriesByType('navigation')[0];
       const item=selector=>{const e=document.querySelector(selector);if(!e)return null;const box=e.getBoundingClientRect(),c=getComputedStyle(e);return {font:c.fontFamily,width:Math.round(box.width),height:Math.round(box.height)}};
-      return {fcp:Math.round(performance.getEntriesByType('paint').find(x=>x.name==='first-contentful-paint')?.startTime||0),ttfb:Math.round(n.responseStart),cls:window.__shifts.reduce((a,b)=>a+b,0),heading:item('h1,h2'),menu:item('#main-nav .main-menu > ul > li > a'),logo:item('#logo'),fontStatus:document.fonts.status,exo:document.fonts.check('400 16px Exo'),active:document.body.classList.contains('wf-active'),slider:!!document.querySelector('sr7-module,rs-module')};
+      return {fcp:Math.round(performance.getEntriesByType('paint').find(x=>x.name==='first-contentful-paint')?.startTime||0),ttfb:Math.round(n.responseStart),cls:window.__shifts.reduce((a,b)=>a+b,0),heading:item('h1,h2'),menu:item('#main-nav .main-menu > ul > li > a'),logo:item('#logo'),fontStatus:document.fonts.status,exo:document.fonts.check('400 16px Exo'),active:document.documentElement.classList.contains('wf-active'),slider:!!document.querySelector('sr7-module,rs-module')};
      });
      result={device:cfg.name,mode,http:r.status(),replaced,metrics,requests,errors};
     }catch(e){result={device:cfg.name,mode,error:String(e).slice(0,250),requests,errors}};
