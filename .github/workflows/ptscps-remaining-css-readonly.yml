@@ -1,0 +1,29 @@
+name: PTSCPS remaining CSS production inventory (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-remaining-css-readonly.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect actual production HTML, CSS order, size and dependencies
+        run: |
+          python3 -m py_compile scripts/ptscps-remaining-css-audit.py
+          python3 -u scripts/ptscps-remaining-css-audit.py > remaining-css-audit.log 2>&1 || { tail -n 25 remaining-css-audit.log; exit 1; }
+          grep '^CSS_AUDIT_SUMMARY' remaining-css-audit.log | cut -c1-16000
+          grep '^CSS_MERGE_CANDIDATES' remaining-css-audit.log | cut -c1-20000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-remaining-css-readonly
+          path: |
+            remaining-css-audit.log
+            remaining-css-audit-results/
+          retention-days: 14
+          if-no-files-found: ignore
