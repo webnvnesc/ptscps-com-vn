@@ -1,0 +1,58 @@
+name: PTSCPS content-visibility offscreen pilot deploy and safety QA
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-content-visibility-pilot.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy-and-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate deployment and CSS source
+        run: |
+          python3 -m py_compile scripts/ptscps-content-visibility-deploy.py scripts/ptscps-purge-home-featured.py
+          node --check scripts/ptscps-content-visibility-production-qa.cjs
+          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
+          grep -q 'Plugin Name: PTSCPS Offscreen Content Visibility Pilot' deploy/ptscps-content-visibility-pilot.php
+      - name: Install only owned offscreen content-visibility MU plugin
+        run: python3 -u scripts/ptscps-content-visibility-deploy.py
+      - name: Purge only homepage WP Super Cache HTML files to expose pilot
+        run: python3 -u scripts/ptscps-purge-home-featured.py
+      - name: Install standalone Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Assert production mobile and desktop correctness after scrolling
+        id: qa
+        run: |
+          node scripts/ptscps-content-visibility-production-qa.cjs > content-visibility-qa.log 2>&1 || { tail -n 35 content-visibility-qa.log; exit 1; }
+          grep '^CV_QA_SUCCESS\|^CV_QA \|^CV_NONHOME' content-visibility-qa.log | cut -c1-15000
+      - name: Automatically rollback only the pilot if QA fails
+        if: failure() && steps.qa.outcome == 'failure'
+        run: |
+          python3 -u scripts/ptscps-content-visibility-deploy.py --rollback
+          python3 -u scripts/ptscps-purge-home-featured.py
+      - name: Archive QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-content-visibility-production-qa
+          path: |
+            content-visibility-qa.log
+            ptscps-content-visibility-qa/
+          retention-days: 14
+          if-no-files-found: ignore
