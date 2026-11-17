@@ -1,0 +1,43 @@
+name: PTSCPS timeline first LCP banner vs next slide fetch (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-banner-timeline.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [desktop, mobile]
+    env:
+      TIMELINE_DEVICE: ${{ matrix.device }}
+      TIMELINE_CYCLES: '2'
+      TIMELINE_WATCH_MS: '36000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium for read-only network observation
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Measure real request start/end versus banner LCP and slide state
+        run: |
+          node --check scripts/ptscps-sr7-banner-timeline.cjs
+          node scripts/ptscps-sr7-banner-timeline.cjs > sr7-banner-timeline.log 2>&1 || { tail -n 26 sr7-banner-timeline.log; exit 1; }
+          grep '^SR7_BANNER_TIMELINE' sr7-banner-timeline.log | cut -c1-16500
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-banner-timeline-${{ matrix.device }}
+          path: |
+            sr7-first-vs-later-${{ matrix.device }}/
+            sr7-banner-timeline.log
+          retention-days: 14
+          if-no-files-found: ignore
