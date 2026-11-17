@@ -44,3 +44,5 @@ jobs:
             slider-lcp.log
           retention-days: 10
           if-no-files-found: warn
+
+# Revalidate homepage FCP LCP CLS after Exo local CSS replaces WebFont Loader.
