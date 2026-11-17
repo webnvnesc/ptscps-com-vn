@@ -1,0 +1,38 @@
+name: PTSCPS ephemeral localhost and public CSS timing probe
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-php-loopback-vs-external.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source before temporary server check
+        run: |
+          python3 -m py_compile scripts/ptscps-php-loopback-vs-external.py
+          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
+      - name: Compare static read and loopback against external response
+        run: |
+          python3 -u scripts/ptscps-php-loopback-vs-external.py > localpath-results.log 2>&1 || { tail -n 30 localpath-results.log; exit 1; }
+          grep '^LOCALPATH_SUMMARY\|^LOCALPATH_CLEANUP' localpath-results.log | cut -c1-6000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-localpath-diagnostic
+          path: |
+            ptscps-localpath-diagnostic/
+            localpath-results.log
+          retention-days: 10
+          if-no-files-found: ignore
