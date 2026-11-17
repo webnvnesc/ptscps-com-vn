@@ -1,0 +1,35 @@
+name: PTSCPS content visibility homepage section audit (read only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-content-visibility-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Inspect visible vs offscreen sections at desktop and mobile
+        run: |
+          node --check scripts/ptscps-content-visibility-audit.cjs
+          node scripts/ptscps-content-visibility-audit.cjs > ptscps-cv-audit.log 2>&1 || { tail -n 25 ptscps-cv-audit.log; exit 1; }
+          grep '^CV_AUDIT' ptscps-cv-audit.log | cut -c1-36000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-content-visibility-predeploy-audit
+          path: |
+            ptscps-cv-audit.log
+            ptscps-content-visibility-audit.json
+          retention-days: 14
+          if-no-files-found: ignore
