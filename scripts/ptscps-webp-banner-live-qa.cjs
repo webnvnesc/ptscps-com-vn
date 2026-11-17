@@ -2,7 +2,7 @@
 /** Verify production WebP negotiation within real Chromium (no site writes). */
 const {chromium}=require('playwright');
 const fs=require('node:fs');
-const URL='https://ptscps.com.vn/';
+const ORIGIN='https://ptscps.com.vn/';
 const OUT='ptscps-webp-banner-live-qa';
 fs.mkdirSync(OUT,{recursive:true});
 (async()=>{
@@ -27,7 +27,7 @@ fs.mkdirSync(OUT,{recursive:true});
       if(!e.hadRecentInput)window.__shifts.push(e.value);
     })).observe({type:'layout-shift',buffered:true});}catch{}
    });
-   const res=await p.goto(URL,{waitUntil:'domcontentloaded',timeout:70000});
+   const res=await p.goto(ORIGIN,{waitUntil:'domcontentloaded',timeout:70000});
    await p.waitForTimeout(3400);
    const state=await p.evaluate(()=>{
     const m=document.querySelector('sr7-module#SR7_1_1');
