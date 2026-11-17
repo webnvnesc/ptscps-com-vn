@@ -2,7 +2,7 @@ name: PTSCPS ephemeral localhost and public CSS timing probe
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/ptscps-php-loopback-vs-external.yml"]
+    paths: [".github/workflows/ptscps-php-loopback-vs-external.yml", "scripts/ptscps-php-loopback-vs-external.py"]
   workflow_dispatch:
 permissions:
   contents: read
