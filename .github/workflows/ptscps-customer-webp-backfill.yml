@@ -1,0 +1,61 @@
+name: PTSCPS customer carousel WebP backfill safe production trial
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-customer-webp-backfill.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-image-pilot
+  cancel-in-progress: false
+jobs:
+  deploy-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install conversion tool and real Chrome
+        run: |
+          python3 -m pip install --disable-pip-version-check pillow
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Preflight migration and browser QA code
+        run: |
+          python3 -m py_compile scripts/ptscps-customer-webp-backfill.py
+          node --check scripts/ptscps-customer-webp-readonly.cjs
+          node --check scripts/ptscps-customer-webp-verify.cjs
+          node --check scripts/ptscps-customer-dims-production-qa.cjs
+      - name: Create only beneficial WebP sidecars without changing JPG PNG or Elementor
+        run: python3 -u scripts/ptscps-customer-webp-backfill.py deploy > customer-webp-deploy.log 2>&1 || { tail -n 20 customer-webp-deploy.log; exit 1; }
+      - name: Verify each created logo via HTTP WebP negotiation and fallback
+        run: |
+          node scripts/ptscps-customer-webp-readonly.cjs > customer-webp-live.log 2>&1 || { tail -n 20 customer-webp-live.log; exit 1; }
+          node scripts/ptscps-customer-webp-verify.cjs
+      - name: Validate slider dimensions, CLS and rendering on mobile and desktop
+        run: |
+          node scripts/ptscps-customer-dims-production-qa.cjs > customer-webp-layout.log 2>&1 || { tail -n 24 customer-webp-layout.log; exit 1; }
+          grep '^LOGO_DIMS_QA_SUCCESS' customer-webp-layout.log
+      - name: Roll back only sidecars created by this job on failure
+        if: failure()
+        run: python3 -u scripts/ptscps-customer-webp-backfill.py rollback
+      - name: Archive per-logo hashes and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-customer-webp-backfill-evidence
+          path: |
+            customer-webp-created.json
+            customer-webp-deploy.log
+            customer-carousel-webp-readonly.json
+            customer-webp-live.log
+            customer-webp-layout.log
+          retention-days: 30
+          if-no-files-found: ignore
