@@ -23,7 +23,7 @@ from PIL import Image
 ROOT="/domains/ptscps.com.vn/public_html"
 UPLOADS=ROOT+"/wp-content/uploads"
 CHILD=UPLOADS+"/2019/10"
-SMOKE_DIR=UPLOADS+"/2026/11"
+SMOKE_DIR=UPLOADS+"/2025/11"
 SMOKE_BASE="ptscps-webp-auto-qa-20261117"
 PLUGIN=ROOT+"/wp-content/mu-plugins/ptscps-webp-autogen.php"
 DISABLED=PLUGIN+".disabled"
@@ -108,7 +108,10 @@ def upload_plugin(f):
     if current is not None:
         if current!=SOURCE:raise RuntimeError("Refusing to replace unrelated WebP plugin")
         print("WEBP_AUTO_PLUGIN_ALREADY_CURRENT",flush=True);return
-    f.storbinary("STOR "+PLUGIN,io.BytesIO(SOURCE))
+    tmp=ROOT+"/wp-content/mu-plugins/.ptscps-webp-auto-"+secrets.token_hex(6)+".tmp"
+    f.storbinary("STOR "+tmp,io.BytesIO(SOURCE))
+    if read(f,tmp)!=SOURCE:raise RuntimeError("Staged MU plugin upload integrity failure")
+    f.rename(tmp,PLUGIN)
     if read(f,PLUGIN)!=SOURCE:raise RuntimeError("MU plugin upload integrity failure")
     print("WEBP_AUTO_PLUGIN_INSTALLED",flush=True)
 def smoke_data():
