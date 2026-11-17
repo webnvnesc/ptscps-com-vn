@@ -1,0 +1,24 @@
+name: PTSCPS SR7 HTML markup and first slide inspection
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-poster-markup-inspect.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect live slider markup desktop mobile cache and bypass
+        run: |
+          python3 -u scripts/ptscps-sr7-poster-markup-inspect.py > sr7-poster-markup.log 2>&1
+          grep '^SR7_MARKUP' sr7-poster-markup.log | cut -c1-20500
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-sr7-poster-markup
+          path: sr7-poster-markup.log
+          retention-days: 14
