@@ -10,7 +10,7 @@ DEST=DIR+"/"+NAME
 DISABLED=DEST+".disabled"
 SOURCE=Path("deploy/ptscps-customer-image-dimensions.php").read_bytes()
 MARK=b"Plugin Name: PTSCPS Elementor Customer Carousel Image Dimensions"
-if MARK not in SOURCE or b"Version: 1.0.0" not in SOURCE:
+if MARK not in SOURCE or b"Version: 1.0.1" not in SOURCE:
     raise RuntimeError("Unexpected owner/source marker")
 url=os.environ["FTP_SERVER"]
 parsed=urlsplit(url if "://" in url else "//"+url)
