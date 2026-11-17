@@ -56,3 +56,5 @@ jobs:
             ptscps-customer-dims-qa/
           retention-days: 14
           if-no-files-found: ignore
+
+# Retry: use fully rendered Elementor the_content hooks after first widget hook missed the public markup.
