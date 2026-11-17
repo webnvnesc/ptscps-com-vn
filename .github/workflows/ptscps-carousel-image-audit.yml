@@ -1,0 +1,35 @@
+name: PTSCPS audit Elementor customer carousel images
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-carousel-image-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Audit dimensions and request start before and after scroll
+        run: |
+          node --check scripts/ptscps-carousel-image-audit.cjs
+          node scripts/ptscps-carousel-image-audit.cjs > ptscps-carousel-image-audit.log 2>&1 || { tail -n 30 ptscps-carousel-image-audit.log; exit 1; }
+          grep '^CAROUSEL_AUDIT' ptscps-carousel-image-audit.log | cut -c1-24000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-carousel-image-audit
+          path: |
+            ptscps-carousel-image-audit.log
+            ptscps-carousel-image-audit.json
+          retention-days: 12
+          if-no-files-found: ignore
