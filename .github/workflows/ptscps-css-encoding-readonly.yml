@@ -1,0 +1,28 @@
+name: PTSCPS verify real CSS gzip Brotli encoding read-only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-css-encoding-readonly.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Request real production CSS with identity, gzip and br headers
+        run: |
+          python3 -m py_compile scripts/ptscps-css-encoding-readonly.py
+          python3 -u scripts/ptscps-css-encoding-readonly.py > css-encoding.log 2>&1 || { tail -n 28 css-encoding.log; exit 1; }
+          grep '^CSS_ENCODING_SUMMARY' css-encoding.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-css-content-encoding-evidence
+          path: |
+            css-encoding.log
+            ptscps-css-encoding-audit.json
+          retention-days: 14
+          if-no-files-found: ignore
