@@ -41,3 +41,5 @@ jobs:
             hard-slider-ab.log
           retention-days: 21
           if-no-files-found: ignore
+
+# Retry transient Chromium NO_FCP up to twice per matched condition.
