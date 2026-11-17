@@ -11,7 +11,7 @@ const {chromium}=require('playwright');
 const fs=require('node:fs');
 const OUT='ptscps-font-head-readonly-audit';
 fs.mkdirSync(OUT,{recursive:true});
-const PAGES=['/','/lien-he','/dich-vu'];
+const PAGES=['/'];
 const modes=[{name:'mobile',width:412,height:850,isMobile:true},{name:'desktop',width:1440,height:900,isMobile:false}];
 const url='https://ptscps.com.vn';
 function shorten(u){try{const x=new URL(u);return x.pathname+(x.search||'').slice(0,120)}catch{return String(u).slice(0,160)}}
@@ -209,6 +209,21 @@ async function auditPage(browser,mode,path){
     googleRequests:x.requests?.filter(y=>/googleapis|gstatic/.test(y.url))
   }))};
  fs.writeFileSync(OUT+'/summary.json',JSON.stringify(summary,null,2));
- console.log('FONT_HEAD_AUDIT_SUMMARY '+JSON.stringify(summary).slice(0,18000));
+ console.log('FONT_HEAD_AUDIT_SUMMARY '+JSON.stringify({
+   samples:summary.samples,valid:summary.valid,
+   rows:summary.rows.map(x=>({
+     device:x.device,path:x.path,
+     arrows:x.arrowElements?.map(e=>({className:e.className,html:e.html,
+       before:e.before,after:e.after,visible:e.isVisible})),
+     eiconNodes:x.eiconNodes?.map(e=>({className:e.className,html:e.html,
+       before:e.before,visible:e.isVisible})),
+     fontNodes:x.fontNodes?.slice(0,6).map(e=>({className:e.className,html:e.html,
+       before:e.before,visible:e.isVisible})),
+     exo:x.exoStyles?.map(y=>({url:y.url,bytes:y.bytes,
+       faces:y.faces?.map(f=>({weight:f.weight,style:f.style,
+         display:f.display,url:f.url?.split('/').at(-1)}))})),
+     preconnects:x.preconnects
+   }))
+ }).slice(0,17000));
  if(summary.valid!==summary.samples)process.exitCode=1;
 })().catch(e=>{console.error('FONT_HEAD_AUDIT_FATAL '+e.stack);process.exitCode=1});
