@@ -48,3 +48,5 @@ jobs:
             ptscps-browser-netlab-qa.json
           retention-days: 15
           if-no-files-found: ignore
+
+# QA rerun: use explicit 125s Playwright wait options from corrected test script.
