@@ -1,7 +1,7 @@
 'use strict';
 const {chromium}=require('playwright');
 const ROOT='https://ptscps.com.vn/';
-const LINK='<link id="ptscps-exo-direct-test" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap">';
+const LINK='<link id="ptscps-exo-direct-test" rel="stylesheet" href="https://ptscps.com.vn/wp-content/uploads/ptscps-exo-fonts/exo-direct-v1.css">';
 const replacement=/<script>\s*WebFontConfig\s*=\s*\{[\s\S]*?wf\.src\s*=\s*['"]\/\/ajax\.googleapis\.com\/ajax\/libs\/webfont\/1\/webfont\.js['"];[\s\S]*?\}\)\(\);\s*<\/script>/i;
 (async()=>{
  const browser=await chromium.launch({headless:true,args:['--disable-extensions']});
@@ -11,11 +11,13 @@ const replacement=/<script>\s*WebFontConfig\s*=\s*\{[\s\S]*?wf\.src\s*=\s*['"]\/
    for(const mode of ['original','direct']){
     const mobile=cfg.width===412;
     const ctx=await browser.newContext({viewport:{width:cfg.width,height:850},deviceScaleFactor:mobile?2:1,isMobile:mobile,hasTouch:mobile,serviceWorkers:'block'});
-    const page=await ctx.newPage(),errors=[],requests=[];
+    const page=await ctx.newPage(),errors=[],requests=[],resourceFailures=[];
+    page.on('requestfailed',r=>resourceFailures.push({url:r.url(),error:r.failure()?.errorText}));
+    page.on('response',r=>{if(/ptscps-exo-fonts/.test(r.url())&&r.status()>=400)resourceFailures.push({url:r.url(),status:r.status()})});
     await page.addInitScript(()=>{window.__shifts=[];try{new PerformanceObserver(list=>list.getEntries().forEach(x=>{if(!x.hadRecentInput)window.__shifts.push(x.value)})).observe({type:'layout-shift',buffered:true})}catch{}});
     let replaced=false;
     page.on('pageerror',e=>errors.push(e.message.slice(0,220)));
-    page.on('request',r=>{if(/webfont\.js|fonts\.googleapis\.com|fonts\.gstatic\.com/.test(r.url()))requests.push(r.url().split('?')[0])});
+    page.on('request',r=>{if(/webfont\.js|fonts\.googleapis\.com|fonts\.gstatic\.com|ptscps-exo-fonts/.test(r.url()))requests.push(r.url().split('?')[0])});
     if(mode==='direct')await page.route(ROOT,async route=>{
       const res=await route.fetch();let html=await res.text();
       replaced=replacement.test(html);
@@ -32,9 +34,9 @@ const replacement=/<script>\s*WebFontConfig\s*=\s*\{[\s\S]*?wf\.src\s*=\s*['"]\/
      const metrics=await page.evaluate(()=>{
       const n=performance.getEntriesByType('navigation')[0];
       const item=selector=>{const e=document.querySelector(selector);if(!e)return null;const box=e.getBoundingClientRect(),c=getComputedStyle(e);return {font:c.fontFamily,width:Math.round(box.width),height:Math.round(box.height)}};
-      return {fcp:Math.round(performance.getEntriesByType('paint').find(x=>x.name==='first-contentful-paint')?.startTime||0),ttfb:Math.round(n.responseStart),cls:window.__shifts.reduce((a,b)=>a+b,0),heading:item('h1,h2'),menu:item('#main-nav .main-menu > ul > li > a'),logo:item('#logo'),fontStatus:document.fonts.status,exo:document.fonts.check('400 16px Exo'),active:document.documentElement.classList.contains('wf-active'),slider:!!document.querySelector('sr7-module,rs-module')};
+      return {fcp:Math.round(performance.getEntriesByType('paint').find(x=>x.name==='first-contentful-paint')?.startTime||0),ttfb:Math.round(n.responseStart),cls:window.__shifts.reduce((a,b)=>a+b,0),heading:item('h1,h2'),menu:item('#main-nav .main-menu > ul > li > a'),logo:item('#logo'),fontStatus:document.fonts.status,exo:document.fonts.check('400 16px Exo'),active:document.documentElement.classList.contains('wf-active'),htmlClass:document.documentElement.className,slider:!!document.querySelector('sr7-module,rs-module')};
      });
-     result={device:cfg.name,mode,http:r.status(),replaced,metrics,requests,errors};
+     result={device:cfg.name,mode,http:r.status(),replaced,metrics,requests,errors,resourceFailures};
     }catch(e){result={device:cfg.name,mode,error:String(e).slice(0,250),requests,errors}};
     records.push(result);console.log('EXO_AB '+JSON.stringify(result).slice(0,7000));
     await ctx.close();
