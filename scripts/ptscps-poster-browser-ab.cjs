@@ -1,6 +1,7 @@
 'use strict';
 const {chromium}=require('playwright');
 const fs=require('node:fs');
+const {PNG}=require('pngjs');
 const fsdir='ptscps-poster-browser-ab';fs.mkdirSync(fsdir,{recursive:true});
 const root='https://ptscps.com.vn/';
 const cases=[
@@ -50,8 +51,22 @@ function addPoster(html){
     });
     const cssBg=probe.bg.includes('ruby-banner');
     const screenshot=fsdir+'/'+c.device+'-'+(c.js?'js':'nojs')+'-'+variant+'.png';
-    await page.screenshot({path:screenshot,timeout:20000});
-    Object.assign(record,{http:resp.status(),src,probe,cssBg,requests,errors,screenshot});
+    const data=await page.screenshot({path:screenshot,timeout:20000});
+    const png=PNG.sync.read(data);
+    const [px,py,pw,ph]=probe.rect;
+    const x0=Math.max(0,px),x1=Math.min(png.width,px+pw);
+    const y0=Math.max(0,py),y1=Math.min(png.height,py+ph);
+    let count=0,blue=0,nonwhite=0,rgb=[0,0,0],sampled=[];
+    for(let y=y0+8;y<y1-8;y+=8)for(let x=x0+8;x<x1-8;x+=8){
+      const i=(png.width*y+x)*4,r=png.data[i],g=png.data[i+1],b=png.data[i+2];
+      count++;rgb[0]+=r;rgb[1]+=g;rgb[2]+=b;
+      if(b>r+25&&b>g+8)blue++;
+      if(r<225||g<225||b<225)nonwhite++;
+    }
+    const color={samples:count,bluePercent:count?Math.round(100*blue/count):0,
+     nonwhitePercent:count?Math.round(100*nonwhite/count):0,
+     avgRGB:rgb.map(v=>Math.round(v/Math.max(1,count)))};
+    Object.assign(record,{http:resp.status(),src,probe,cssBg,requests,errors,screenshot,color});
    }catch(e){record.error=String(e).slice(0,450);}
    console.log('POSTER_AB '+JSON.stringify(record).slice(0,6500));
    all.push(record);
