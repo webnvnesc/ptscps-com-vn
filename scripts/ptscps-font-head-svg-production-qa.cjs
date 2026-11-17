@@ -37,13 +37,21 @@ const modes = [
           const arrows=[...document.querySelectorAll('.elementor-element-ed1c7da .elementor-swiper-button')];
           return {
             preconnect:head,
+            trialMarker:document.querySelector('meta[name="ptscps-font-head-trial"]')?.content||null,
             exo:!!document.querySelector('link[href*="ptscps-exo-fonts/exo-direct-v1.css"]'),
-            svg:arrows.map(el=>({
-              buttonClass:el.className,svgCount:el.querySelectorAll('svg.ptscps-carousel-svg').length,
-              iconCount:el.querySelectorAll('i.eicon-chevron-left,i.eicon-chevron-right').length,
-              aria:el.getAttribute('aria-label'),display:getComputedStyle(el).display,
-              box:el.getBoundingClientRect().toJSON()
-            })),
+            svg:arrows.map(el=>{
+              const icon=el.querySelector('i.eicon-chevron-left,i.eicon-chevron-right');
+              const pseudo=icon?getComputedStyle(icon,'::before'):null;
+              return {
+                buttonClass:el.className,
+                iconCount:el.querySelectorAll('i.eicon-chevron-left,i.eicon-chevron-right').length,
+                pseudoContent:pseudo?.content,
+                svgMask:pseudo?.webkitMaskImage||pseudo?.maskImage,
+                fontFamily:pseudo?.fontFamily,
+                aria:el.getAttribute('aria-label'),display:getComputedStyle(el).display,
+                box:el.getBoundingClientRect().toJSON()
+              };
+            }),
             slides:document.querySelectorAll('.elementor-element-ed1c7da .swiper-slide').length,
             docWidth:document.documentElement.scrollWidth,
             bodyFont:getComputedStyle(document.body).fontFamily,
@@ -57,9 +65,10 @@ const modes = [
           validHTTP:item.http===200,
           noGoogleHints:googleHints.length===0,
           exoPresent:item.data.exo,
+          trialPresent:path!=='/'||item.data.trialMarker==='1.0.1',
           noJsErrors:errors.length===0,
           noHorizontalOverflow:item.data.docWidth<=mode.width+3,
-          svgArrows:path!=='/'||(item.data.svg.length===2&&item.data.svg.every(x=>x.svgCount===1&&x.iconCount===0&&x.aria&&x.box.width>0&&x.box.height>0)),
+          svgArrows:path!=='/'||(item.data.svg.length===2&&item.data.svg.every(x=>x.iconCount===1&&x.pseudoContent==='""'&&x.svgMask.includes('data:image/svg+xml')&&x.aria&&x.box.width>0&&x.box.height>0)),
           swiperPresent:path!=='/'||item.data.slides>=2
         };
         // Compare slide state before and after pressing the verified next control.
