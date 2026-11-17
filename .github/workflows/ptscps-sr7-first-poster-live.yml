@@ -66,3 +66,5 @@ jobs:
           if-no-files-found: ignore
 
 # Retry v1.0.1 with final Elementor content filter and server-markup QA.
+
+# Deploy v1.0.2 to catch slider saves through authenticated REST as well as admin-AJAX.
