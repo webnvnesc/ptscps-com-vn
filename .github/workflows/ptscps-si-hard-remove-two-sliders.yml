@@ -24,7 +24,11 @@ jobs:
           node-version: '22'
       - name: Install Chromium, Lighthouse, and HTML parser
         run: |
-          npm install --no-save --no-audit --no-fund playwright lighthouse@13.5.0 cheerio
+          for i in 1 2 3; do
+            npm install --no-save --no-audit --no-fund playwright lighthouse@13.5.0 cheerio && break
+            if [ "$i" -eq 3 ]; then exit 1; fi
+            sleep 8
+          done
           npx playwright install --with-deps chromium
       - name: Browser-only hard removal A B test with real Lighthouse
         run: |
