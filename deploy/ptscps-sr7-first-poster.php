@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS SR7 First Slide CSS Poster
  * Description: Render the first current Slider Revolution banner image as CSS immediately, with a no-JS fallback.
- * Version: 1.0.2
+ * Version: 1.0.3
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -76,6 +76,61 @@ add_filter( 'the_content', static function ( $html ) {
 add_filter( 'elementor/frontend/the_content', static function ( $html ) {
     return ptscps_sr7_poster_widget( $html, null );
 }, PHP_INT_MAX );
+
+/**
+ * Preload the same current first-slide background in the initial document head.
+ *
+ * Use the installed SR7 model, not a hard-coded Ruby banner or a second REST
+ * request. The underlying SR7 query orders published slides by slide_order.
+ * This runs *before* the Elementor widget outputs its <sr7-module>.
+ */
+add_action( 'wp_head', static function () {
+    if ( ! ptscps_sr7_poster_allowed()
+        || ! class_exists( 'RevSliderSlider' )
+        || ! class_exists( 'RevSliderSlide' ) ) {
+        return;
+    }
+
+    try {
+        $slider = new RevSliderSlider();
+        $slider->init_by_id( 1, false );
+        $slides = $slider->get_slides( true );
+        if ( ! is_array( $slides ) || empty( $slides ) ) {
+            return;
+        }
+        $slide = reset( $slides );
+        if ( ! is_object( $slide ) || ! method_exists( $slide, 'get_bg_layer' ) ) {
+            return;
+        }
+        $layer = $slide->get_bg_layer();
+        $src = is_array( $layer ) && isset( $layer['bg']['image']['src'] )
+            && is_string( $layer['bg']['image']['src'] )
+            ? $layer['bg']['image']['src'] : '';
+        if ( '' === $src ) {
+            return;
+        }
+        if ( 0 === strpos( $src, '//' ) ) {
+            $src = 'https:' . $src;
+        }
+        $parts = wp_parse_url( $src );
+        $origin = wp_parse_url( home_url( '/' ) );
+        if ( ! is_array( $parts ) || ! is_array( $origin )
+            || 'https' !== ( $parts['scheme'] ?? '' )
+            || strtolower( $parts['host'] ?? '' ) !== strtolower( $origin['host'] ?? '' )
+            || empty( $parts['path'] )
+            || false === strpos( $parts['path'], '/wp-content/uploads/' )
+            || ! preg_match( '~\.(?:jpe?g|png|webp|avif)$~i', $parts['path'] ) ) {
+            return;
+        }
+
+        echo '<link rel="preload" as="image" fetchpriority="high"'
+            . ' href="' . esc_url( $src ) . '"'
+            . ' data-ptscps-sr7-first-preload="1">' . "\n";
+    } catch ( \Throwable $error ) {
+        // Never break the homepage when SR7 updates its internal model.
+        error_log( 'PTSCPS SR7 first-slide preload skipped: ' . $error->getMessage() );
+    }
+}, 2 );
 
 /**
  * A banner image or slide order change must invalidate WordPress HTML cache.
