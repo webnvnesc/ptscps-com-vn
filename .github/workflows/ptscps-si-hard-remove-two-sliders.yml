@@ -24,11 +24,11 @@ jobs:
           node-version: '22'
       - name: Install Chromium, Lighthouse, and HTML parser
         run: |
-          for i in 1 2 3; do
-            npm install --no-save --no-audit --no-fund playwright lighthouse@13.5.0 cheerio && break
-            if [ "$i" -eq 3 ]; then exit 1; fi
-            sleep 8
-          done
+          # Puppeteer-core 25.18.1 is not published as of 2026-11-17.
+          # Pin the known released 25.17.0 instead of resolving a broken tarball.
+          printf '%s\n' '{"name":"ptscps-hard-slider-lab","private":true,"version":"1.0.0","overrides":{"puppeteer-core":"25.17.0"}}' > package.json
+          npm install --no-save --no-audit --no-fund playwright lighthouse@13.5.0 cheerio
+          npm ls puppeteer-core --depth=3 || true
           npx playwright install --with-deps chromium
       - name: Browser-only hard removal A B test with real Lighthouse
         run: |
