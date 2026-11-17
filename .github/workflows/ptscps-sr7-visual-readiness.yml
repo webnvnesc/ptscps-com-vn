@@ -1,0 +1,42 @@
+name: PTSCPS SR7 visual readiness frames (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-visual-readiness.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [desktop, mobile]
+    env:
+      VISUAL_DEVICE: ${{ matrix.device }}
+      VISUAL_CYCLES: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chrome and PNG sampling dependencies
+        run: |
+          npm install --no-save --no-audit --no-fund playwright pngjs
+          npx playwright install --with-deps chromium
+      - name: Observe first hero pixel fill and SR7 activation
+        run: |
+          node --check scripts/ptscps-sr7-visual-readiness.cjs
+          node scripts/ptscps-sr7-visual-readiness.cjs > sr7-visual.log 2>&1 || { tail -n 28 sr7-visual.log; exit 1; }
+          grep '^SR7_VISUAL_READINESS' sr7-visual.log | cut -c1-19000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-sr7-visual-${{ matrix.device }}
+          path: |
+            sr7-visual-readiness-${{ matrix.device }}/
+            sr7-visual.log
+          retention-days: 14
+          if-no-files-found: ignore
