@@ -1,0 +1,16 @@
+name: PTSCPS test Exo Google CSS endpoints without site changes
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-exo-css-url-probe.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Exo CSS stylesheets and font-face formats
+        run: python3 -u scripts/ptscps-exo-css-url-probe.py
