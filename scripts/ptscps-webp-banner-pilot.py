@@ -122,6 +122,14 @@ def main():
     mode=sys.argv[1]
     f=ftp_conn()
     try:
+        # This fixed-three-banner utility is obsolete after the successful
+        # uploads-wide WebP deployment. Prevent accidental deletion of
+        # 3 banner sidecars while the global rewrite is active.
+        uploads_rules=optional(f,ROOT+"/wp-content/uploads/.htaccess")
+        if uploads_rules and b"PTSCPS_WEBP_UPLOADS_AUTOMATIC_v1" in uploads_rules:
+            raise RuntimeError(
+                "Dynamic WebP is active; use ptscps-webp-autogen-deploy.py rollback instead"
+            )
         ht=optional(f,DIR+"/.htaccess")
         if mode=="rollback":return rollback(f)
         if ht is not None and ht!=RULES.encode("utf-8"):
