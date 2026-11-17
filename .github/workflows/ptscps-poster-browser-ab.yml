@@ -17,7 +17,7 @@ jobs:
           node-version: '22'
       - name: Install Chromium
         run: |
-          npm install --no-save --no-audit --no-fund playwright
+          npm install --no-save --no-audit --no-fund playwright pngjs
           npx playwright install --with-deps chromium
       - name: Compare first-slide poster with and without JavaScript
         run: |
@@ -32,3 +32,5 @@ jobs:
             poster-browser-ab.log
           retention-days: 10
           if-no-files-found: ignore
+
+# Analyze actual screenshot pixels to ensure SR7 preloader does not cover poster.
