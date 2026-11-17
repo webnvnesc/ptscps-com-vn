@@ -33,6 +33,20 @@ const out='ptscps-browser-netlab-qa.json';
   };
   fs.writeFileSync(out,JSON.stringify(summary,null,2));
   console.log('NETLAB_QA '+JSON.stringify(summary).slice(0,11000));
+  // Independently verify same-origin full-page iframe timing button.
+  await page.locator('#home').click();
+  await page.waitForFunction(()=>{
+    const r=window.ptscpsNetworkLab?.getReport?.();
+    return r && Array.isArray(r.homepage) && r.homepage.length===3 &&
+      !document.querySelector('#home').disabled;
+  },null,{timeout:80000});
+  const home=await page.evaluate(()=>window.ptscpsNetworkLab.getReport().homepage);
+  const validHome=home.filter(x=>x.ok).length;
+  console.log('NETLAB_HOME_QA '+JSON.stringify({assets:home.map(x=>({key:x.key,
+    ok:x.ok,firstByteMs:x.firstByteMs,protocol:x.protocol,error:x.error})),
+    validHome}));
+  if(validHome<2)throw Error('Full homepage iframe did not expose expected asset timings');
+
   if(results.groupAssets.length<3)throw Error('No grouped requests');
   for(const key of ['jannah','spacer','jquery']){
    if(results.summary[key].solo.attempted<6 || results.summary[key].group.attempted<6)
