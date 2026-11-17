@@ -1,0 +1,70 @@
+name: PTSCPS Jannah six CSS bundle production guarded canary
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-core6-css-production.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 32
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate plugin and deploy scripts
+        run: |
+          php -l deploy/ptscps-jannah-core6-bundle.php
+          python3 -m py_compile scripts/ptscps-core6-stage-and-deploy.py
+          node --check scripts/ptscps-core6-production-qa.cjs
+          node --check scripts/ptscps-wpsc-clear-html-cache.cjs
+      - name: Install Chromium for cache purge and mobile desktop QA
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Build Jannah bundle and install dedicated MU plugin via encrypted FTPS
+        run: |
+          python3 -u scripts/ptscps-core6-stage-and-deploy.py deploy > ptscps-core6-deploy.log 2>&1 || { tail -n 24 ptscps-core6-deploy.log; exit 1; }
+          grep -E '^CORE6_(BUILD|PRODUCTION_INSTALLED)' ptscps-core6-deploy.log | cut -c1-2200
+      - name: Purge cached WordPress HTML before checking public CSS
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs > ptscps-core6-purge.log 2>&1 || { tail -n 20 ptscps-core6-purge.log; exit 1; }
+          grep '^WPSC_' ptscps-core6-purge.log | cut -c1-1300
+      - name: Real production QA five pages x mobile and desktop with actual CSS network
+        run: |
+          node scripts/ptscps-core6-production-qa.cjs > ptscps-core6-qa.log 2>&1 || { tail -n 35 ptscps-core6-qa.log; exit 1; }
+          grep '^CORE6_QA_SUMMARY' ptscps-core6-qa.log
+      - name: Revert only this canary MU plugin and associated bundle on failed gate
+        if: failure()
+        run: python3 -u scripts/ptscps-core6-stage-and-deploy.py rollback
+      - name: Purge cached HTML again if rollback was necessary
+        if: failure()
+        run: node scripts/ptscps-wpsc-clear-html-cache.cjs || true
+      - name: Archive source checksums and QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-core6-production-qa-and-rollback-state
+          path: |
+            ptscps-core6-built.css
+            ptscps-core6-built.json
+            ptscps-core6-deploy-state.json
+            ptscps-core6-plugin-before.php
+            ptscps-core6-deploy.log
+            ptscps-core6-live-qa.json
+            ptscps-core6-qa.log
+            ptscps-core6-purge.log
+          retention-days: 30
+          if-no-files-found: ignore
