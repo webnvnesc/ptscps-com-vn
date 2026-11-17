@@ -1,4 +1,4 @@
-name: PTSCPS rollback 3 SR7 WebP banners
+name: PTSCPS legacy WebP rollback (restore 3-banner baseline)
 on:
   workflow_dispatch:
 permissions:
@@ -18,5 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Pillow
         run: python3 -m pip install --disable-pip-version-check pillow
-      - name: Remove only the exact owned WebP rule and three generated files
-        run: python3 -u scripts/ptscps-webp-banner-pilot.py rollback
+      - name: Safely restore baseline 3-banner policy from dynamic WebP
+        run: |
+          python3 -u scripts/ptscps-webp-autogen-deploy.py rollback
+          python3 -u scripts/ptscps-webp-banner-http-qa.py
