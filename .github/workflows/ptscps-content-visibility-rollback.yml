@@ -1,0 +1,22 @@
+name: PTSCPS rollback offscreen content-visibility pilot
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  disable:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disable only pilot MU plugin and refresh only homepage HTML cache
+        run: |
+          python3 scripts/ptscps-content-visibility-deploy.py --rollback
+          python3 scripts/ptscps-purge-home-featured.py
