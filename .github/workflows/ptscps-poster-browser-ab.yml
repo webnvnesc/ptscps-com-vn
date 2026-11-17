@@ -1,0 +1,34 @@
+name: PTSCPS static poster background browser-only A/B
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-poster-browser-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Compare first-slide poster with and without JavaScript
+        run: |
+          node scripts/ptscps-poster-browser-ab.cjs > poster-browser-ab.log 2>&1 || { tail -n 28 poster-browser-ab.log; exit 1; }
+          grep '^POSTER_AB' poster-browser-ab.log | cut -c1-6000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-static-poster-ab-screenshots
+          path: |
+            ptscps-poster-browser-ab/
+            poster-browser-ab.log
+          retention-days: 10
+          if-no-files-found: ignore
