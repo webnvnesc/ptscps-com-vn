@@ -1,0 +1,28 @@
+name: PTSCPS exact SR7 slide background model read-only source
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-background-source.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source read-only
+        run: |
+          python3 -u scripts/ptscps-sr7-background-source.py > sr7-background-source.log 2>&1
+          grep '^SR7_SOURCE' sr7-background-source.log | cut -c1-8500
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-sr7-background-source
+          path: sr7-background-source.log
+          retention-days: 7
