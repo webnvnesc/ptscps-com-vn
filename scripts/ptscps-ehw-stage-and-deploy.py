@@ -92,11 +92,11 @@ def prepare():
     # the audit reported adjacent CSS links, but WordPress may inject inline
     # dependencies between them in wp_head, changing cascade semantics.
     head=html[html.lower().find("<head"):html.lower().find("</head>")]
-    links=list(re.finditer(r"<(?:link|style|script)\\b[^>]*>",head,re.I))
+    links=list(re.finditer(r"<(?:link|style|script)\b[^>]*>",head,re.I))
     selected=[]
     for handle in HANDLES:
         matches=[i for i,m in enumerate(links) if re.search(
-            r"\\bid\\s*=\\s*[\\\"']"+re.escape(handle)+r"[\\\"']",m.group(0),re.I)]
+            r"\bid\s*=\s*[\\"']"+re.escape(handle)+r"[\\"']",m.group(0),re.I)]
         if len(matches)!=1:
             raise RuntimeError("Link not unique or missing in actual head: "+handle)
         selected.append(matches[0])
@@ -108,7 +108,7 @@ def prepare():
         css=public(url).decode("utf-8","replace")
         if len(css)<90:
             raise RuntimeError("CSS unexpectedly small: "+url)
-        if re.search(r"@charset\\s",css,re.I):
+        if re.search(r"@charset\s",css,re.I):
             raise RuntimeError("Unmergeable CSS @charset in "+url)
         sources[handle]=url
         chunks.append("/* "+handle+" */\n"+rebase(css,url)+"\n")
