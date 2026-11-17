@@ -40,3 +40,31 @@ Potential next step is a true temporary *foreground* overlay poster that stays a
 ## Version history
 
 First attempt #44004887017 rolled back correctly because a restrictive Elementor widget-name check meant no poster markup reached output filters. v1.0.1 included final rendered-content filters and passed QA. v1.0.2 retains same HTML/paint but fixes REST cache invalidation; all production tests passed.
+
+
+## UPDATE: v1.0.3 dynamic first-slide `fetchpriority="high"` preload, production verified
+
+- Installed MU plugin source: `deploy/ptscps-sr7-first-poster.php` **v1.0.3**.
+- Production workflow [#44011116890](https://github.com/webnvnesc/ptscps-com-vn/actions/runs/44011116890) **success**. FTPS checksum-verified deploy + WPSC cache purge + **6/6** Chrome desktop/mobile tests including JS disabled and unaffected non-home pages. Rollback skipped.
+- Native installed SR7 PHP source `RevSliderSlider::get_slides(true)` queries published slides sorted by `slide_order ASC`. `RevSliderSlide::get_bg_layer()` exposes `['bg']['image']['src']`. Thus `wp_head` priority 2 can emit `<link rel="preload" as="image" fetchpriority="high" href="...">` **without a hard-coded image URL, extra REST API request, or buffering the entire HTML response**.
+- Same-origin/HTTPS/upload-folder/image extension validated; do nothing if an unsupported background/image or slider model. The existing Elementor-rendered poster extraction remains the visual source of truth.
+- Production Chrome QA asserts **exactly one** head preload exists on homepage, with URL equal to the rendered native SR7 first slide `<noscript><img src>` and CSS poster `data-ptscps-poster`; no preload emitted on unrelated pages. Desktop and mobile both pass.
+- On updates through SR7 save hooks, HTML cache is purged as before. If an admin configures a random/alternative initial slide, the implementation must be reviewed to ensure the initial displayed slide still matches first in `slide_order`; normal reordering is reflected by SR7's native model. Do not hardcode `ruby-banner.jpg` in future optimization.
+
+**Independent real Lighthouse post-deployment**: [run #44011537452](https://github.com/webnvnesc/ptscps-com-vn/actions/runs/44011537452), both matrix jobs success, two cycles per device.
+
+| Device | Run | Performance | FCP | LCP | Speed Index | TBT | CLS |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Mobile | 1 | 94 | 1892ms | 2192ms | 4945ms | 2ms | 0 |
+| Mobile | 2 | 93 | 1957ms | 2257ms | 5128ms | 0ms | 0.000270 |
+| Desktop | 1 | 97 | 482ms | 562ms | 1880ms | 0ms | 0.005290 |
+| Desktop | 2 | 96 | 616ms | 696ms | 1871ms | 0ms | 0.005305 |
+
+In *all four* Lighthouse network audits, the initial `ruby-banner.jpg` transfer was **High** priority at ~71.36 KB; when SR7 later requested that same image, the second record was **0 transferred bytes** (browser reuse). Slides 2/3 remained Low priority and were not preloaded. No guaranteed performance improvement can be claimed from two runs versus fluctuating historical baselines, but this validates the dynamic priority mechanism and no apparent CLS/TBT regressions in the measured samples.
+
+## Remaining caveats
+
+- Different mobile/desktop images and random/alternative initial slide modes: require separate explicit verification before asserting they are handled. Current responsive pages use the matching first image; the mechanism does not generate two image candidates or media-specific preload entries.
+- Preload and poster update when SR7 content and the WP Super Cache HTML change; exact admin-edit cache invalidation hooks are implemented but not yet exercise-tested by actually editing slides in this release.
+- Standard Lighthouse's separate "LCP request discovery" warning status was **not extracted** from these runs. We verified head preload structure, browser request priority and timing, but should not claim that every individual PSI warning has necessarily cleared.
+- Keep existing rollback scripts `scripts/ptscps-sr7-first-poster-rollback.py` and prior v1.0.2 backup from the deployment action. The new plugin can be safely disabled without touching Slider Revolution's slide data.
