@@ -1,0 +1,43 @@
+name: PTSCPS A/B hide two sliders - real Lighthouse SI read-only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-si-two-sliders-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mobile, desktop]
+    env:
+      PTSCPS_AB_DEVICE: ${{ matrix.device }}
+      PTSCPS_AB_CYCLES: '3'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Lighthouse, Playwright Chromium and system libraries
+        run: |
+          npm install --no-save --no-audit --no-fund playwright lighthouse@13.5.0
+          npx playwright install --with-deps chromium
+      - name: Verify script and measure every variant on the exact production URL
+        run: |
+          node --check scripts/ptscps-si-two-sliders-ab.cjs
+          node scripts/ptscps-si-two-sliders-ab.cjs > sliders-ab.log 2>&1 || { tail -n 35 sliders-ab.log; exit 1; }
+          grep '^SLIDERS_AB_SUMMARY' sliders-ab.log | cut -c1-24000
+      - name: Archive Lighthouse JSON and all comparisons
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-two-sliders-ab-${{ matrix.device }}
+          path: |
+            ptscps-slider-ab-${{ matrix.device }}/
+            sliders-ab.log
+          retention-days: 21
+          if-no-files-found: ignore
