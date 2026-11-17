@@ -1,0 +1,28 @@
+name: PTSCPS read-only Slider Revolution slide data PHP API audit
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-slide-source-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect read-only SR7 model API
+        run: |
+          python3 -u scripts/ptscps-sr7-slide-source-audit.py > sr7-slide-api.log 2>&1
+          grep -E '^SR7_(LIST|CLASS|MISSING)' sr7-slide-api.log | cut -c1-16000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-sr7-slide-api
+          path: sr7-slide-api.log
+          retention-days: 7
