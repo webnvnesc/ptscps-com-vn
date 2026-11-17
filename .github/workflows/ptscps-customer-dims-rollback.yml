@@ -1,0 +1,22 @@
+name: PTSCPS rollback customer image dimensions
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disable only the owned MU image-dimensions plugin
+        run: |
+          python3 scripts/ptscps-customer-dims-deploy.py --rollback
+          python3 scripts/ptscps-purge-home-featured.py
