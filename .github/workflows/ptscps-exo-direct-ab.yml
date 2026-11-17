@@ -34,3 +34,5 @@ jobs:
 # Recheck correct documentElement wf-active selector to match Jannah font rules.
 
 # A/B local Exo CSS/WOFF2 after verified inert asset upload.
+
+# Retry full local Exo CSS A/B with body-scoped equivalent Jannah typography.
