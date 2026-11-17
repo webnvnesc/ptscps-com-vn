@@ -1,0 +1,64 @@
+name: PTSCPS scoped Google preconnect removal and carousel SVG trial
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-font-head-svg-live.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate scoped plugin and deployment scripts
+        run: |
+          php -l deploy/ptscps-font-head-carousel-svg.php
+          python3 -m py_compile scripts/ptscps-font-head-svg-deploy.py scripts/ptscps-font-head-svg-rollback.py
+          node --check scripts/ptscps-font-head-svg-production-qa.cjs
+      - name: Install browser tools
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Deploy owned MU plugin using secure FTPS and verify its checksum
+        run: python3 -u scripts/ptscps-font-head-svg-deploy.py
+      - name: Invalidate HTML cache by WP Super Cache UI
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs > font-head-svg-purge.log 2>&1 || { tail -n 25 font-head-svg-purge.log; exit 1; }
+          grep '^WPSC_' font-head-svg-purge.log | cut -c1-1500
+      - name: Verify carousel controls, fonts, preconnect and JS on production
+        run: |
+          node scripts/ptscps-font-head-svg-production-qa.cjs > font-head-svg-qa.log 2>&1 || { tail -n 25 font-head-svg-qa.log; exit 1; }
+          grep '^FONT_HEAD_SVG_SUMMARY' font-head-svg-qa.log
+      - name: Roll back only this MU plugin if any step fails
+        if: failure()
+        run: python3 -u scripts/ptscps-font-head-svg-rollback.py
+      - name: Clear cached HTML if rolled back
+        if: failure()
+        run: node scripts/ptscps-wpsc-clear-html-cache.cjs || true
+      - name: Archive QA results and original plugin for recovery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-font-head-svg-trial
+          path: |
+            font-head-svg-state.json
+            font-head-svg-before.php
+            font-head-svg-qa.json
+            font-head-svg-qa.log
+            font-head-svg-purge.log
+          retention-days: 30
+          if-no-files-found: ignore
