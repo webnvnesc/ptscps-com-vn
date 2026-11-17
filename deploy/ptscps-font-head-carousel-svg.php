@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS Google Font Hints + Customer Carousel SVG Trial
  * Description: Remove only unused Google Fonts preconnects and replace exactly two customer-carousel eicon arrows with inline SVG on the public homepage.
- * Version: 1.0.0
+ * Version: 1.0.1
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -47,50 +47,69 @@ add_filter( 'wp_resource_hints', static function ( $hints, $relation_type ) {
     } ) );
 }, PHP_INT_MAX, 2 );
 
-/**
- * Elementor's widget output filter keeps the same Swiper click/keyboard
- * handlers and parent aria-labels; only the decorative <i> becomes an SVG.
- * Restrict to the verified homepage image-carousel widget id ed1c7da.
- * Fail open (original HTML) if either icon or markup changes.
- */
-add_filter( 'elementor/widget/render_content', static function ( $content, $widget ) {
-    if ( ! ptscps_font_svg_trial_public() || ! is_front_page()
-        || ! is_object( $widget ) || ! method_exists( $widget, 'get_id' )
-        || 'ed1c7da' !== $widget->get_id()
-        || ! is_string( $content )
-        || false === strpos( $content, 'elementor-swiper-button-prev' )
-        || false === strpos( $content, 'elementor-swiper-button-next' ) ) {
-        return $content;
-    }
-    if ( 1 !== substr_count( $content, 'eicon-chevron-left' )
-        || 1 !== substr_count( $content, 'eicon-chevron-right' ) ) {
-        return $content;
-    }
-    $seen = array();
-    $pattern = '~<i\b[^>]*\bclass\s*=\s*(["\'])[^"\']*\beicon-chevron-(left|right)\b[^"\']*\1[^>]*>\s*</i>~i';
-    $replaced = preg_replace_callback( $pattern, static function ( $match ) use ( &$seen ) {
-        $direction = strtolower( $match[2] );
-        $seen[] = $direction;
-        $points = 'left' === $direction ? '15 18 9 12 15 6' : '9 18 15 12 9 6';
-        return '<svg xmlns="http://www.w3.org/2000/svg" class="ptscps-carousel-svg"'
-            . ' aria-hidden="true" focusable="false" width="1em" height="1em"'
-            . ' viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
-            . ' stroke-linecap="round" stroke-linejoin="round">'
-            . '<polyline points="' . $points . '"></polyline></svg>';
-    }, $content, 2, $count );
-    if ( 2 !== $count || count( $seen ) !== 2
-        || ! in_array( 'left', $seen, true ) || ! in_array( 'right', $seen, true ) ) {
-        return $content;
-    }
-    return is_string( $replaced ) ? $replaced : $content;
-}, 99, 2 );
 
+/**
+ * The Google hints may be printed by Jannah/SEO code directly during wp_head,
+ * not via wp_resource_hints. Restrict buffer to callbacks of wp_head only.
+ * No full-page buffering and no changes to scripts, preloads or other hosts.
+ */
+add_action( 'wp_head', static function () {
+    if ( ! ptscps_font_svg_trial_public() ) {
+        return;
+    }
+    $GLOBALS['ptscps_google_hint_buffer_level'] = ob_get_level() + 1;
+    ob_start();
+}, -999999 );
+
+add_action( 'wp_head', static function () {
+    if ( ! isset( $GLOBALS['ptscps_google_hint_buffer_level'] )
+        || ob_get_level() !== $GLOBALS['ptscps_google_hint_buffer_level'] ) {
+        return;
+    }
+    unset( $GLOBALS['ptscps_google_hint_buffer_level'] );
+    $head = ob_get_clean();
+    // Remove exactly the preconnect tags, preserving DNS-prefetch and others.
+    $head = preg_replace_callback( '~<link\b[^>]*>~i', static function ( $m ) {
+        $tag = $m[0];
+        if ( ! preg_match( '~\brel\s*=\s*(["\'])preconnect\1~i', $tag )
+            || ! preg_match( '~\bhref\s*=\s*(["\'])([^"\']+)\1~i', $tag, $url ) ) {
+            return $tag;
+        }
+        $parts = wp_parse_url( html_entity_decode( $url[2], ENT_QUOTES, 'UTF-8' ) );
+        $host = is_array( $parts ) && isset( $parts['host'] ) ? strtolower( $parts['host'] ) : '';
+        return in_array( $host, array( 'fonts.googleapis.com', 'fonts.gstatic.com' ), true ) ? '' : $tag;
+    }, $head );
+    echo $head;
+}, 999999 );
+
+/**
+ * SVG as a CSS mask on the two proven customer carousel arrows.
+ * No JS mutation and no Elementor widget filter that could be bypassed by cache.
+ * The original aria-labelled button and keyboard handlers stay untouched.
+ * The font glyph is replaced with an empty pseudo-element and SVG mask.
+ * Scoped exclusively to the audited homepage carousel widget ID.
+ */
 add_action( 'wp_head', static function () {
     if ( ! ptscps_font_svg_trial_public() || ! is_front_page() ) {
         return;
     }
+    echo '<meta name="ptscps-font-head-trial" content="1.0.1" />' . "\n";
     echo '<style id="ptscps-carousel-svg-style">'
-       . '.elementor-element-ed1c7da .elementor-swiper-button .ptscps-carousel-svg'
-       . '{display:block;width:1em;height:1em;flex:none;vertical-align:middle;pointer-events:none}'
+       . '.elementor-element-ed1c7da .elementor-swiper-button i.eicon-chevron-left,'
+       . '.elementor-element-ed1c7da .elementor-swiper-button i.eicon-chevron-right'
+       . '{display:inline-flex;width:1em;height:1em;font-family:Arial,sans-serif!important}'
+       . '.elementor-element-ed1c7da .elementor-swiper-button i.eicon-chevron-left:before,'
+       . '.elementor-element-ed1c7da .elementor-swiper-button i.eicon-chevron-right:before'
+       . '{content:""!important;display:block;width:1em;height:1em;'
+       . 'background-color:currentColor;'
+       . '-webkit-mask-position:center;-webkit-mask-repeat:no-repeat;-webkit-mask-size:contain;'
+       . 'mask-position:center;mask-repeat:no-repeat;mask-size:contain;'
+       . 'font-family:Arial,sans-serif!important}'
+       . '.elementor-element-ed1c7da .elementor-swiper-button i.eicon-chevron-left:before'
+       . '{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M15 18l-6-6 6-6%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E");'
+       . 'mask-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M15 18l-6-6 6-6%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E")}'
+       . '.elementor-element-ed1c7da .elementor-swiper-button i.eicon-chevron-right:before'
+       . '{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M9 18l6-6-6-6%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E");'
+       . 'mask-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M9 18l6-6-6-6%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E")}'
        . '</style>' . "\n";
 }, 99 );
