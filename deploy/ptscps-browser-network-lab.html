@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; frame-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<title>PTSCPS | Đo tải CSS/JS trực tiếp từ trình duyệt</title>
+<!-- PTSCPS_BROWSER_NETLAB_V1: Temporary read-only end-user diagnostic, no server collection. -->
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:#233142;background:#f3f6fa;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0;padding:25px 14px 70px}
+main{max-width:1050px;margin:auto}h1{font-size:clamp(21px,3vw,29px);margin:0 0 10px}
+h2{font-size:18px;margin:0 0 10px}p{line-height:1.55;margin:7px 0 12px}
+.muted{font-size:13px;color:#58657a}.box{background:#fff;border:1px solid #dce4ec;border-radius:12px;padding:20px;margin:15px 0}
+.actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+button,select{font:inherit;padding:10px 14px;border-radius:9px;border:1px solid #b7c6d8;background:white;color:#19324f;cursor:pointer}
+button.primary{background:#0c5790;border-color:#0c5790;color:white;font-weight:650}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,select:focus-visible{outline:3px solid #89c8f6;outline-offset:2px}
+#status{margin:16px 0 0;padding:12px;border-radius:8px;background:#f1f6fb;min-height:44px;white-space:pre-wrap}
+.table-scroll{overflow:auto}table{border-collapse:collapse;width:100%;font-size:14px;min-width:630px}
+th,td{border-bottom:1px solid #e1e7ed;text-align:right;padding:10px 8px;vertical-align:top}
+th:first-child,td:first-child{text-align:left}thead{background:#eff4f9}td.good{color:#126f42}td.bad{color:#a23c17}
+small,.caption{color:#53657b;font-size:12px}
+textarea{width:100%;min-height:160px;margin-top:10px;padding:10px;border:1px solid #c5d1df;border-radius:8px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical}
+#homePreview{display:none}iframe{width:100%;height:390px;border:1px solid #d5dfe8;border-radius:8px;background:#fff}
+details summary{cursor:pointer;font-weight:600}
+.tag{display:inline-block;background:#eaf2fb;color:#184b76;padding:4px 8px;border-radius:5px;font-size:12px;margin-bottom:10px}
+@media(max-width:600px){.box{padding:14px}button{font-size:13px}}
+</style>
+</head>
+<body>
+<main>
+<span class="tag">PTSCPS • NETWORK DIAGNOSTIC • NOINDEX</span>
+<h1>Đo tải CSS/JS từ chính trình duyệt của bạn</h1>
+<p>So sánh tốc độ tải <b>từng tài nguyên riêng lẻ</b> và <b>nhiều tài nguyên cùng lúc</b> trên cùng hosting. Phép thử chạy bằng kết nối Internet của bạn, không dùng máy chủ GitHub để đo.</p>
+<section class="box">
+<h2>Thực hiện kiểm tra</h2>
+<p class="muted">Khuyến nghị mở bằng Chrome Guest hoặc cửa sổ ẩn danh không bật extension; tắt VPN và dùng cùng một mạng. Không cần đăng nhập WordPress hay mở DevTools.</p>
+<div class="actions">
+<label for="rounds">Số vòng:
+<select id="rounds"><option value="6">6 vòng (nhanh)</option><option value="12" selected>12 vòng (khuyến nghị)</option><option value="20">20 vòng (chi tiết)</option></select></label>
+<button type="button" id="run" class="primary">Chạy tải riêng &amp; tải đồng thời</button>
+<button type="button" id="home">Đo trang chủ thật (1 lượt)</button>
+<button type="button" id="stop" disabled>Dừng</button>
+</div>
+<div id="status" aria-live="polite">Sẵn sàng. Chưa có phép đo nào được chạy.</div>
+</section>
+<section class="box">
+<h2>Kết quả so sánh</h2>
+<p class="muted">Đơn vị mili giây (ms). <b>Byte đầu</b> tính từ khi trình duyệt bắt đầu request tới lúc có phản hồi; gồm cả kết nối và lập lịch. Cột chậm là số lượt ≥ 2.000ms. Tải đồng thời được thực hiện với tối đa 8 CSS/JS thật trên trang chủ, không thực thi nội dung script.</p>
+<div class="table-scroll"><table>
+<thead><tr><th>Tài nguyên / Cách tải</th><th>Số mẫu</th><th>Trung vị byte đầu</th><th>P90</th><th>Cao nhất</th><th>≥2 giây</th><th>Lỗi</th></tr></thead>
+<tbody id="results"><tr><td colspan="7" style="text-align:left">Chưa có dữ liệu.</td></tr></tbody>
+</table></div>
+<p class="muted" id="comparison"></p>
+</section>
+<section class="box" id="homePreview">
+<h2>Trang chủ thật</h2>
+<p class="muted">Trang chủ được mở trong khung cùng tên miền để đo các file CSS/JS như khi trang được tải bình thường. Tải lại trang này nhiều lần có thể sử dụng cache của trình duyệt; báo cáo có ghi số byte truyền để nhận biết.</p>
+<div id="frameHolder"></div>
+</section>
+<section class="box">
+<h2>Chia sẻ kết quả</h2>
+<p class="muted">Phép đo không gửi báo cáo đến máy chủ và không lưu IP, cookies hay thông tin đăng nhập. Bạn có thể sao chép báo cáo rồi gửi vào chat để phân tích. Các request CSS/JS vẫn xuất hiện bình thường trong access log của website.</p>
+<div class="actions">
+<button id="copy" disabled>Sao chép báo cáo JSON</button>
+<button id="download" disabled>Tải báo cáo JSON</button>
+</div>
+<textarea id="json" readonly spellcheck="false" aria-label="Báo cáo kiểm tra">Chưa có kết quả.</textarea>
+</section>
+<section class="box">
+<details><summary>Giới hạn của phép thử</summary>
+<p class="muted">So sánh này đo mạng từ trình duyệt đang dùng, không xác nhận vị trí vật lý hoặc lỗi của hosting. Tải từng file bằng fetch khác với mức ưu tiên CSS/JS khi Chrome dựng trang. Nhóm 8 file không giống toàn bộ trang WordPress. Đo trang chủ thật là phép thử riêng, có thể bị ảnh hưởng cache. Kết quả cần được đối chiếu trên cả mạng tại Việt Nam và GitHub trước khi kết luận.</p>
+</details>
+</section>
+</main>
+<script>
+(function(){
+'use strict';
+var root=location.origin,active=false,controller=null,stopRequested=false;
+var latest=null,rows=[],homeRows=[],assets=null,group=null;
+var els={run:document.getElementById('run'),home:document.getElementById('home'),
+ stop:document.getElementById('stop'),rounds:document.getElementById('rounds'),
+ status:document.getElementById('status'),results:document.getElementById('results'),
+ comparison:document.getElementById('comparison'),json:document.getElementById('json'),
+ copy:document.getElementById('copy'),download:document.getElementById('download'),
+ preview:document.getElementById('homePreview'),holder:document.getElementById('frameHolder')};
+performance.setResourceTimingBufferSize(4000);
+function median(values){
+ var a=values.filter(Number.isFinite).sort(function(x,y){return x-y;});
+ if(!a.length)return null;
+ return (a[Math.floor((a.length-1)/2)]+a[Math.floor(a.length/2)])/2;
+}
+function percentile(values,p){
+ var a=values.filter(Number.isFinite).sort(function(x,y){return x-y;});
+ return a.length?a[Math.min(a.length-1,Math.ceil(a.length*p)-1)]:null;
+}
+function rounded(n){return Number.isFinite(n)?Math.round(n):null;}
+function pretty(n){return n==null?'—':Math.round(n).toLocaleString('vi-VN')+' ms';}
+function describe(url){try{var u=new URL(url);return u.pathname+u.search;}catch(e){return url;}}
+function keyFor(url){
+ if(/\/jannah\/assets\/css\/style\.min\.css/i.test(url))return 'jannah';
+ if(/\/elementor\/assets\/css\/widget-spacer\.min\.css/i.test(url))return 'spacer';
+ if(/\/jquery\/jquery\.min\.js/i.test(url))return 'jquery';
+ return null;
+}
+function status(message){els.status.textContent=message;}
+function busy(isBusy){
+ active=isBusy;
+ els.run.disabled=isBusy;els.home.disabled=isBusy;els.rounds.disabled=isBusy;
+ els.stop.disabled=!isBusy;
+}
+async function discover(){
+ status('Đang đọc HTML trang chủ để tìm đúng phiên bản file hiện đang sử dụng...');
+ var response=await fetch(root+'/',{cache:'no-store',credentials:'omit',signal:controller.signal});
+ if(!response.ok)throw new Error('Trang chủ trả HTTP '+response.status);
+ var text=await response.text();
+ var doc=new DOMParser().parseFromString(text,'text/html');
+ var elements=Array.from(doc.querySelectorAll('link[rel~="stylesheet"][href],script[src]'));
+ var found=[],seen=new Set();
+ elements.forEach(function(node){
+  var raw=node.getAttribute(node.tagName==='SCRIPT'?'src':'href');
+  if(!raw)return;
+  var url;
+  try{url=new URL(raw,root+'/');}catch(e){return;}
+  if(url.origin!==root || !/^\/(wp-content|wp-includes)\//.test(url.pathname))return;
+  if(seen.has(url.href))return;
+  seen.add(url.href);
+  var isStyle=node.tagName==='LINK';
+  found.push({url:url.href,type:isStyle?'css':'js',key:keyFor(url.href)});
+ });
+ var targets=['jannah','spacer','jquery'].map(function(k){
+  return found.find(function(f){return f.key===k;});
+ });
+ if(targets.some(function(t){return !t;}))throw new Error('Không tìm đủ CSS Jannah, CSS Elementor và jQuery trên trang chủ; chưa đo để tránh sai kết quả.');
+ assets=targets;
+ group=targets.slice();
+ // Cap burst at eight actual first-party resources from the current homepage.
+ found.forEach(function(item){
+  if(group.length>=8)return;
+  if(!group.some(function(x){return x.url===item.url;}))group.push(item);
+ });
+ return targets;
+}
+async function one(asset,mode,cycle){
+ var started=performance.now();
+ try{
+  var response=await fetch(asset.url,{cache:'no-store',credentials:'omit',
+   mode:'same-origin',redirect:'follow',signal:controller.signal});
+  var data=await response.arrayBuffer();
+  var entries=performance.getEntriesByName(asset.url,'resource');
+  var e=entries.length?entries[entries.length-1]:null;
+  var valid=response.ok && !!e && e.responseStart>0;
+  return {mode:mode,cycle:cycle,key:asset.key||'extra',
+   path:describe(asset.url),ok:valid,code:response.status,
+   firstByteMs:valid?rounded(e.responseStart-e.startTime):null,
+   afterSendMs:valid?rounded(e.responseStart-e.requestStart):null,
+   downloadMs:valid?rounded(e.responseEnd-e.responseStart):null,
+   totalMs:valid?rounded(e.responseEnd-e.startTime):rounded(performance.now()-started),
+   protocol:e?e.nextHopProtocol:null,
+   transferSize:e?e.transferSize:null,bodyBytes:data.byteLength,
+   error:valid?null:'Không đọc được timing hoặc HTTP khác 200'};
+ }catch(err){
+  return {mode:mode,cycle:cycle,key:asset.key||'extra',
+   path:describe(asset.url),ok:false,error:err && err.name==='AbortError'?'Đã dừng':String(err.message||err)};
+ }
+}
+function summarize(mode,key){
+ var subset=rows.filter(function(x){return x.mode===mode && x.key===key;});
+ var good=subset.filter(function(x){return x.ok && Number.isFinite(x.firstByteMs);});
+ var delays=good.map(function(x){return x.firstByteMs;});
+ return {n:good.length,attempted:subset.length,medianMs:median(delays),p90Ms:percentile(delays,.9),
+  maxMs:delays.length?Math.max.apply(null,delays):null,
+  over2s:delays.filter(function(x){return x>=2000;}).length,
+  errors:subset.length-good.length};
+}
+function appendCells(tr,values){
+ values.forEach(function(value){
+  var td=document.createElement('td');
+  td.textContent=String(value);
+  tr.appendChild(td);
+ });
+ els.results.appendChild(tr);
+}
+function show(){
+ els.results.replaceChildren();
+ var names={jannah:'CSS Jannah',spacer:'CSS Elementor nhỏ',jquery:'jQuery'};
+ ['jannah','spacer','jquery'].forEach(function(k){
+  ['solo','group'].forEach(function(mode){
+   var s=summarize(mode,k);
+   var tr=document.createElement('tr');
+   appendCells(tr,[names[k]+' · '+(mode==='solo'?'Tải riêng':'Tải cùng'),
+    s.n+'/'+s.attempted,pretty(s.medianMs),pretty(s.p90Ms),pretty(s.maxMs),s.over2s,s.errors]);
+  });
+ });
+ if(homeRows.length){
+  ['jannah','spacer','jquery'].forEach(function(k){
+   var x=homeRows.find(function(r){return r.key===k;});
+   var tr=document.createElement('tr');
+   appendCells(tr,[names[k]+' · Trang chủ thật',x&&x.ok?'1/1':'0/1',
+    pretty(x&&x.firstByteMs),pretty(x&&x.firstByteMs),
+    pretty(x&&x.firstByteMs),x&&x.firstByteMs>=2000?1:0,x&&x.ok?0:1]);
+  });
+ }
+ var pairs=[];
+ ['jannah','spacer','jquery'].forEach(function(k){
+  var deltas=[];
+  rows.filter(function(x){return x.key===k&&x.mode==='group'&&x.ok;}).forEach(function(x){
+   var s=rows.find(function(y){return y.key===k&&y.mode==='solo'&&y.cycle===x.cycle&&y.ok;});
+   if(s)deltas.push(x.firstByteMs-s.firstByteMs);
+  });
+  pairs.push({asset:k,valid:deltas.length,medianExtraMs:median(deltas),deltasMs:deltas});
+ });
+ els.comparison.textContent='Chênh lệch tải cùng trừ tải riêng (trung vị theo từng vòng): '+
+  pairs.map(function(x){return names[x.asset]+': '+(x.medianExtraMs==null?'—':(x.medianExtraMs>=0?'+':'')+
+   Math.round(x.medianExtraMs)+'ms');}).join(' · ');
+ return pairs;
+}
+function serialize(){
+ var paired=show();
+ latest={version:'ptscps-browser-netlab-1.0.0',capturedAt:new Date().toISOString(),
+  timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,
+  origin:root,rounds:Number(els.rounds.value),
+  note:'Timing from user browser; not a host CPU or Apache processing measurement. No location data collected. fetch no-store, not executed scripts.',
+  assets:assets?assets.map(function(a){return {key:a.key,path:describe(a.url)};}):[],
+  groupAssets:group?group.map(function(a){return {key:a.key||'extra',path:describe(a.url)};}):[],
+  summary:Object.fromEntries(['jannah','spacer','jquery'].map(function(k){return [k,{solo:summarize('solo',k),group:summarize('group',k)}];})),
+  paired:paired,homepage:homeRows,rows:rows};
+ els.json.value=JSON.stringify(latest,null,2);
+ els.copy.disabled=false;els.download.disabled=false;
+}
+async function runCompare(){
+ if(active)return;
+ stopRequested=false;controller=new AbortController();rows=[];homeRows=[];
+ busy(true);
+ try{
+  await discover();
+  var rounds=Number(els.rounds.value);
+  for(var i=1;i<=rounds;i++){
+   if(stopRequested)break;
+   status('Đang đo vòng '+i+'/'+rounds+' • Tải từng tài nguyên và '+group.length+' file đồng thời...');
+   var items=assets.slice();
+   if(i%2===0)items.reverse();
+   var solos=async function(){
+    for(var j=0;j<items.length;j++){
+     if(stopRequested)return;
+     rows.push(await one(items[j],'solo',i));
+    }
+   };
+   var together=async function(){
+    var batch=await Promise.all(group.map(function(asset){return one(asset,'group',i);}));
+    // Record only the three principal targets in report rows.
+    rows.push.apply(rows,batch.filter(function(x){return ['jannah','spacer','jquery'].includes(x.key);}));
+   };
+   if(i%2===0){await together();await solos();}
+   else{await solos();await together();}
+   serialize();
+  }
+  status(stopRequested?'Đã dừng; vẫn có kết quả các vòng đã hoàn thành.':
+   'Đã hoàn thành '+rounds+' vòng. Nhấn “Sao chép báo cáo JSON” rồi gửi vào chat.');
+ }catch(e){status('Không thể hoàn thành: '+String(e.message||e));}
+ finally{busy(false);controller=null;}
+}
+async function runHomepage(){
+ if(active)return;
+ stopRequested=false;controller=new AbortController();
+ busy(true);
+ try{
+  if(!assets)await discover();
+  status('Đang tải trang chủ thật trong iframe cùng tên miền...');
+  els.preview.style.display='block';els.holder.replaceChildren();
+  var frame=document.createElement('iframe');
+  frame.title='PTSCPS homepage timing sample';
+  frame.referrerPolicy='no-referrer';
+  frame.loading='eager';
+  els.holder.appendChild(frame);
+  var fired=false;
+  var outcome=await new Promise(function(resolve){
+   var timeout=setTimeout(function(){if(!fired){fired=true;resolve('timeout');}},35000);
+   frame.addEventListener('load',function(){
+    if(!fired){fired=true;clearTimeout(timeout);resolve('loaded');}
+   },{once:true});
+   frame.addEventListener('error',function(){
+    if(!fired){fired=true;clearTimeout(timeout);resolve('error');}
+   },{once:true});
+   frame.src=root+'/';
+  });
+  if(outcome!=='loaded')throw new Error('Trang chủ iframe: '+outcome);
+  var p=frame.contentWindow.performance;
+  var resources=p.getEntriesByType('resource');
+  homeRows=['jannah','spacer','jquery'].map(function(k){
+   var timings=resources.filter(function(e){return keyFor(e.name)===k;});
+   var t=timings.length?timings[0]:null;
+   var ok=!!(t && t.responseStart>0);
+   return {key:k,ok:ok,firstByteMs:ok?rounded(t.responseStart-t.startTime):null,
+    afterSendMs:ok?rounded(t.responseStart-t.requestStart):null,
+    transferSize:t?t.transferSize:null,protocol:t?t.nextHopProtocol:null,
+    error:ok?null:'Không thấy request hoặc timing (cache, trình duyệt, hoặc file không tải)'};
+  });
+  serialize();
+  status('Đã ghi kết quả từ trang chủ thật. Nếu transferSize=0, request có thể đã được cache; đo lần đầu bằng Chrome Guest để giảm sai số.');
+ }catch(e){status('Không hoàn thành phép đo trang chủ: '+String(e.message||e));}
+ finally{busy(false);controller=null;}
+}
+els.run.addEventListener('click',runCompare);
+els.home.addEventListener('click',runHomepage);
+els.stop.addEventListener('click',function(){
+ stopRequested=true;
+ if(controller)controller.abort();
+ status('Đang dừng và giữ lại kết quả đã ghi...');
+});
+els.copy.addEventListener('click',async function(){
+ if(!latest)return;
+ var text=JSON.stringify(latest,null,2);
+ try{await navigator.clipboard.writeText(text);status('Đã sao chép báo cáo. Dán vào chat để gửi kết quả.');}
+ catch(e){els.json.select();document.execCommand('copy');status('Đã chọn báo cáo; nhấn Ctrl+C nếu trình duyệt không cho sao chép tự động.');}
+});
+els.download.addEventListener('click',function(){
+ if(!latest)return;
+ var blob=new Blob([JSON.stringify(latest,null,2)],{type:'application/json'});
+ var url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download='ptscps-browser-network-results.json';
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(function(){URL.revokeObjectURL(url);},2000);
+});
+window.ptscpsNetworkLab={getReport:function(){return latest;},runCompare:runCompare,runHomepage:runHomepage};
+})();
+</script>
+</body>
+</html>
