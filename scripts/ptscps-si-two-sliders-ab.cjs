@@ -9,7 +9,7 @@
  * visual exclusion ONLY: JS and asset downloads remain deliberately enabled.
  */
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {execFileSync}=require('node:child_process');
+const {execFileSync,spawn}=require('node:child_process');
 const {chromium}=require('playwright');
 const lighthouse=require.resolve('lighthouse/cli/index.js');
 const device=process.env.PTSCPS_AB_DEVICE==='desktop'?'desktop':'mobile';
@@ -41,13 +41,29 @@ function patch(html,mode){
 async function run(mode,cycle,baseHtml){
  const profile=fs.mkdtempSync(path.join(os.tmpdir(),'ptscps-lh-'));
  const port=10000+((process.pid+cycle*19+modes.indexOf(mode)*23)%35000);
- let ctx=null;
+ let ctx=null,sessionBrowser=null,chromeProcess=null;
  const row={device,mode,cycle,port,fulfilled:0};
  try{
-  ctx=await chromium.launchPersistentContext(profile,{
-   headless:true,acceptDownloads:false,serviceWorkers:'block',
-   args:['--no-sandbox','--disable-dev-shm-usage','--remote-debugging-port='+port]
-  });
+  chromeProcess=spawn(chromium.executablePath(),[
+    '--headless=new','--no-sandbox','--disable-dev-shm-usage',
+    '--no-first-run','--no-default-browser-check',
+    '--user-data-dir='+profile,'--remote-debugging-port='+port,'about:blank'
+  ],{stdio:'ignore'});
+  let connected=false;
+  for(let attempt=0;attempt<30;attempt++){
+    if(chromeProcess.exitCode!==null)throw Error('Chrome exited before debugger ready '+chromeProcess.exitCode);
+    try {
+      const r=await fetch('http://127.0.0.1:'+port+'/json/version',
+        {signal:AbortSignal.timeout(1200)});
+      if(r.ok){connected=true;break;}
+    }catch{}
+    await new Promise(resolve=>setTimeout(resolve,350));
+  }
+  if(!connected)throw Error('Chrome remote debugger port unavailable '+port);
+  sessionBrowser=await chromium.connectOverCDP('http://127.0.0.1:'+port);
+  ctx=sessionBrowser.contexts()[0];
+  if(!ctx)throw Error('CDP default BrowserContext unavailable');
+  console.log('SLIDERS_AB_CDP_READY '+JSON.stringify({device,mode,cycle,port}));
   await ctx.route('https://ptscps.com.vn/**',async route=>{
     const req=route.request();
     const url=new URL(req.url());
@@ -116,7 +132,9 @@ async function run(mode,cycle,baseHtml){
   row.ok=false;row.error=String(e.stderr||e.stack||e).slice(-1900);
   console.log('SLIDERS_AB_LH_ERROR '+JSON.stringify(row).slice(0,3200));
  }finally{
-  try{await ctx?.close()}catch{}
+  try{await sessionBrowser?.close()}catch{}
+  if(chromeProcess&&!chromeProcess.killed)chromeProcess.kill('SIGTERM');
+  await new Promise(resolve=>setTimeout(resolve,180));
   fs.rmSync(profile,{recursive:true,force:true});
  }
  return row;
@@ -145,6 +163,7 @@ async function run(mode,cycle,baseHtml){
    const row=await run(mode,i+1,html);
    rows.push(row);
    fs.writeFileSync(path.join(dir,'results.json'),JSON.stringify(rows,null,2));
+   if(!row.ok)throw Error('Abort remaining A/B cases; first invalid measurement '+mode+' '+(row.error||''));
   }
  }
  const valid=rows.filter(x=>x.ok);
