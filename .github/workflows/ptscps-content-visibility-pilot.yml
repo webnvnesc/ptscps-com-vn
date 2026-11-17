@@ -56,3 +56,5 @@ jobs:
             ptscps-content-visibility-qa/
           retention-days: 14
           if-no-files-found: ignore
+
+# Safe retry: narrowed to offscreen news on mobile; no customer-carousel containment.
