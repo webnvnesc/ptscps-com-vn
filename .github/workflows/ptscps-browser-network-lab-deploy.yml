@@ -50,3 +50,5 @@ jobs:
           if-no-files-found: ignore
 
 # QA rerun: use explicit 125s Playwright wait options from corrected test script.
+
+# Additional end-to-end QA: full homepage iframe timing button smoke test.
