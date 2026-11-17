@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS Exo Font CSS Direct
  * Description: Load Exo stylesheet directly and remove Jannah's redundant WebFont Loader, retaining wf-active font selectors.
- * Version: 1.0.1
+ * Version: 1.0.2
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -23,7 +23,7 @@ add_action( 'wp_enqueue_scripts', static function () {
     }
     wp_enqueue_style(
         'ptscps-exo-direct',
-        'https://fonts.googleapis.com/css2?family=Exo:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap',
+        content_url( '/uploads/ptscps-exo-fonts/exo-direct-v1.css' ),
         array(),
         null,
         'all'
