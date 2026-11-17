@@ -1,0 +1,44 @@
+name: PTSCPS repeat Lighthouse 10 runs per device (production read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-lighthouse-repeat-10.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 38
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mobile, desktop]
+    env:
+      PTSCPS_LH_DEVICE: ${{ matrix.device }}
+      PTSCPS_LH_COUNT: '10'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Lighthouse and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund lighthouse@13.5.0 playwright
+          npx playwright install --with-deps chromium
+      - name: Verify measurement source
+        run: node --check scripts/ptscps-lighthouse-repeat-10.cjs
+      - name: Run 10 real Lighthouse CLI measurements against unchanged production
+        run: |
+          node scripts/ptscps-lighthouse-repeat-10.cjs > lighthouse-repeat-10.log 2>&1 || { tail -n 24 lighthouse-repeat-10.log; exit 1; }
+          grep '^LH_REPEAT_SUMMARY' lighthouse-repeat-10.log | cut -c1-14500
+      - name: Archive full reports including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-lighthouse-10-${{ matrix.device }}
+          path: |
+            ptscps-repeat-lighthouse-${{ matrix.device }}/
+            lighthouse-repeat-10.log
+          retention-days: 14
+          if-no-files-found: ignore
