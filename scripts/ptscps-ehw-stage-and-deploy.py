@@ -109,8 +109,15 @@ def prepare():
         css=public(url).decode("utf-8","replace")
         if len(css)<90:
             raise RuntimeError("CSS unexpectedly small: "+url)
+        # @charset may legally occur at the beginning of each standalone CSS.
+        # It cannot appear in the middle of the concatenated stylesheet.
+        # UTF-8 is preserved by the builder; reject any other encoding.
+        css=css.lstrip("\ufeff")
+        charset=re.match(r'^\s*@charset\s+([\x22\x27])utf-8\1\s*;',css,re.I)
+        if charset:
+            css=css[charset.end():]
         if re.search(r"@charset\s",css,re.I):
-            raise RuntimeError("Unmergeable CSS @charset in "+url)
+            raise RuntimeError("Unsupported or non-leading CSS charset in "+url)
         sources[handle]=url
         chunks.append("/* "+handle+" */\n"+rebase(css,url)+"\n")
     joined=("\n".join(chunks)).encode("utf-8")
