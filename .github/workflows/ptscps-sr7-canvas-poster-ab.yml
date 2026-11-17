@@ -1,0 +1,38 @@
+name: PTSCPS SR7 canvas vs early CSS poster mobile A/B (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-canvas-poster-ab.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      CANVAS_PAIRS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and dependencies
+        run: |
+          npm install --no-save --no-audit --no-fund playwright cheerio@1.0.0 jpeg-js
+          npx playwright install --with-deps chromium
+      - name: Validate then run equalized HTML mobile A/B filmstrip
+        run: |
+          node --check scripts/ptscps-sr7-canvas-poster-ab.cjs
+          node scripts/ptscps-sr7-canvas-poster-ab.cjs > canvas-poster-ab.log 2>&1 || { tail -n 25 canvas-poster-ab.log; exit 1; }
+          grep '^CANVAS_AB_SUMMARY' canvas-poster-ab.log | cut -c1-23000
+      - name: Save filmstrips and browser metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-canvas-poster-ab
+          path: |
+            canvas-poster-ab.log
+            ptscps-sr7-canvas-poster-ab/
+          retention-days: 14
+          if-no-files-found: ignore
