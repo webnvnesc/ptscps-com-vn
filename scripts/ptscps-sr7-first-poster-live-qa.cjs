@@ -41,6 +41,9 @@ const fs=require('node:fs');
      await ctx.close();continue;
     }
     await page.waitForTimeout(1250);
+    const pageHtml=await response.text();
+    const markup=pageHtml.match(/<sr7-module\b[^>]*\bid="SR7_1_1"[^>]*>[\s\S]*?<sr7-slide\b[^>]*>[\s\S]*?<\/sr7-slide>/i)?.[0]||'';
+    const markupSrc=markup.match(/<noscript>\s*<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i)?.[1]||null;
     const result=await page.evaluate(()=>{
       const m=document.querySelector('sr7-module#SR7_1_1');
       if(!m)return {error:'SR7 module absent'};
@@ -69,14 +72,14 @@ const fs=require('node:fs');
       }
      pixel={total,nonwhite:Math.round(100*nonwhite/Math.max(1,total)),blue:Math.round(100*blue/Math.max(1,total))};
     }
-    const matches=(result.src||'')===(result.poster||'');
-    const visibleBg=result.bg?.includes(result.src?.split('/').at(-1)||'#notfound');
+    const matches=!!markupSrc&&markupSrc===result.poster;
+    const visibleBg=result.bg?.includes(markupSrc?.split('/').at(-1)||'#notfound');
     const geometry=result.rect&&result.rect[2]>(mobile?360:590)&&result.rect[3]>175&&result.rect[3]<350;
-    const imgRequested=requests.some(x=>x.url===result.src&&x.status===200);
+    const imgRequested=requests.some(x=>x.url===markupSrc&&x.status===200);
     const complete=response.status()===200&&matches&&visibleBg&&geometry&&imgRequested&&
       result.slideCount>=3&&result.cacheMode===c.device&&errors.length===0&&
       result.cls<0.055&&(!pixel||pixel.blue>=27&&pixel.nonwhite>=33);
-    Object.assign(record,{http:response.status(),result,pixel,requests:requests.filter(x=>x.url===result.src),errors,passed:!!complete});
+    Object.assign(record,{http:response.status(),result,pixel,markupSrc,requests:requests.filter(x=>x.url===markupSrc),errors,passed:!!complete});
    }catch(e){Object.assign(record,{passed:false,error:String(e.stack||e).slice(0,450),errors})}
    list.push(record);console.log('POSTER_LIVE_QA '+JSON.stringify(record).slice(0,9000));
    await ctx.close();
