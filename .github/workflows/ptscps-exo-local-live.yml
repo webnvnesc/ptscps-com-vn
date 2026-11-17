@@ -1,0 +1,73 @@
+name: PTSCPS deploy Exo local CSS replace WebFont JS safely
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-exo-local-live.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify PHP plugin and operations
+        run: |
+          php -l deploy/ptscps-exo-css-direct.php
+          python3 -m py_compile scripts/ptscps-exo-direct-deploy.py scripts/ptscps-exo-direct-rollback.py
+          node --check scripts/ptscps-exo-production-qa.cjs
+      - name: Install production browser QA
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Verify local Exo CSS exists before enabling
+        run: |
+          python3 - <<'PY'
+          import urllib.request
+          u='https://ptscps.com.vn/wp-content/uploads/ptscps-exo-fonts/exo-direct-v1.css'
+          with urllib.request.urlopen(u,timeout=30) as r:
+              body=r.read(25000)
+              assert r.status==200 and body.count(b'@font-face')==15 and b'https://fonts.' not in body
+              print('EXO_LOCAL_CSS_READY',len(body))
+          PY
+      - name: Enable scoped direct Exo CSS plugin with checksum verification
+        run: python3 -u scripts/ptscps-exo-direct-deploy.py
+      - name: Purge HTML cache by native WP Super Cache control
+        run: |
+          node scripts/ptscps-wpsc-clear-html-cache.cjs > exo-cache-purge.log 2>&1 || { tail -n 30 exo-cache-purge.log; exit 1; }
+          grep '^WPSC_PURGE_' exo-cache-purge.log | cut -c1-2000
+      - name: Verify 5 pages on desktop and mobile with fonts and JS requests
+        run: |
+          node scripts/ptscps-exo-production-qa.cjs > exo-production-qa.log 2>&1 || { tail -n 28 exo-production-qa.log; exit 1; }
+          grep '^EXO_PROD_SUMMARY' exo-production-qa.log
+      - name: Roll back plugin if any verification fails
+        if: failure()
+        run: python3 -u scripts/ptscps-exo-direct-rollback.py
+      - name: Purge HTML cache after rollback
+        if: failure()
+        run: node scripts/ptscps-wpsc-clear-html-cache.cjs || true
+      - name: Store QA and backup artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-exo-local-live-evidence
+          path: |
+            exo-direct-before.php
+            exo-production-qa.log
+            exo-production-qa.json
+            exo-cache-purge.log
+          retention-days: 30
+          if-no-files-found: ignore
