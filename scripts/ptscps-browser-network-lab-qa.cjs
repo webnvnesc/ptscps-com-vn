@@ -21,7 +21,7 @@ const out='ptscps-browser-netlab-qa.json';
   await page.waitForFunction(()=>{
    const r=window.ptscpsNetworkLab?.getReport?.();
    return r && r.summary?.jannah?.solo?.attempted>=6 && !document.querySelector('#run').disabled;
-  },{timeout:125000});
+  },null,{timeout:125000});
   const results=await page.evaluate(()=>window.ptscpsNetworkLab.getReport());
   const summary={version:results.version,domain:results.origin,rounds:results.rounds,
     attempted:results.rows.length,
