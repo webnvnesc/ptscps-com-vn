@@ -96,7 +96,8 @@ def prepare():
     selected=[]
     for handle in HANDLES:
         matches=[i for i,m in enumerate(links) if re.search(
-            r"\bid\s*=\s*[\\"']"+re.escape(handle)+r"[\\"']",m.group(0),re.I)]
+            r"""(?:\s)id\s*=\s*["']""" + re.escape(handle) + r"""["']""",
+            m.group(0),re.I)]
         if len(matches)!=1:
             raise RuntimeError("Link not unique or missing in actual head: "+handle)
         selected.append(matches[0])
