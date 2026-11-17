@@ -1,0 +1,39 @@
+name: PTSCPS rollback Elementor widget CSS bundle only
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Remove only three SHA256 verified Elementor trial files
+        run: |
+          python3 -m py_compile scripts/ptscps-ehw-manual-rollback.py
+          python3 -u scripts/ptscps-ehw-manual-rollback.py
+      - name: Install browser for page cache clearing
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Clear cached HTML after restoring original Elementor styles
+        run: |
+          success=0
+          for attempt in 1 2 3; do
+            if node scripts/ptscps-wpsc-clear-html-cache.cjs; then success=1; break; fi
+            sleep 4
+          done
+          test "${success}" -eq 1
