@@ -23,16 +23,16 @@ try:
    rows=list(ftp.mlsd(path,facts=["type","size"]))
    names={name.lower() for name,_ in rows}
    item["reachable"]=True
-   item["error_logs"]=bool(names.intersection({"error.log","error_log","error.log.1"}))
-   item["access_logs"]=bool(names.intersection({"access.log","access_log","access.log.1"}))
+   item["error_logs"]=any("error" in n and ("log" in n or ".txt" in n) for n in names)
+   item["access_logs"]=any("access" in n and ("log" in n or ".txt" in n) for n in names)
    item["apache_config"]=bool(names.intersection({"httpd.conf","apache2.conf"}))
   except ftplib.all_errors:
    try:
     ftp.cwd(path)
     names={x.split("/")[-1].lower() for x in ftp.nlst()}
     item["reachable"]=True
-    item["error_logs"]=bool(names.intersection({"error.log","error_log","error.log.1"}))
-    item["access_logs"]=bool(names.intersection({"access.log","access_log","access.log.1"}))
+    item["error_logs"]=any("error" in n and ("log" in n or ".txt" in n) for n in names)
+    item["access_logs"]=any("access" in n and ("log" in n or ".txt" in n) for n in names)
     item["apache_config"]=bool(names.intersection({"httpd.conf","apache2.conf"}))
    except ftplib.all_errors:
     pass
