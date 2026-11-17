@@ -35,3 +35,5 @@ jobs:
           if-no-files-found: ignore
 
 # QA rerun: include exact arrow glyphs, icon nodes and Exo face details in summary.
+
+# Final targeted rerun: homepage glyph CSS and local Exo @font-face details only.
