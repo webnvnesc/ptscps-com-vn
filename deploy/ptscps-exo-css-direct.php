@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS Exo Font CSS Direct
  * Description: Load Exo stylesheet directly and remove Jannah's redundant WebFont Loader, retaining wf-active font selectors.
- * Version: 1.0.0
+ * Version: 1.0.1
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -30,11 +30,22 @@ add_action( 'wp_enqueue_scripts', static function () {
     );
 }, 1 );
 
-add_filter( 'body_class', static function ( $classes ) {
-    if ( ptscps_exo_direct_active() && ! in_array( 'wf-active', $classes, true ) ) {
-        $classes[] = 'wf-active';
+add_filter( 'language_attributes', static function ( $attributes ) {
+    if ( ! ptscps_exo_direct_active() ) {
+        return $attributes;
     }
-    return $classes;
+    // Jannah's selectors use .wf-active body; the class belongs on HTML.
+    if ( preg_match( '~\\bclass\\s*=~i', $attributes ) ) {
+        return preg_replace_callback(
+            '~\\bclass\\s*=\\s*(["\\\'])(.*?)\\1~i',
+            static function ( $m ) {
+                return 'class=' . $m[1] . trim( $m[2] . ' wf-active' ) . $m[1];
+            },
+            $attributes,
+            1
+        );
+    }
+    return $attributes . ' class="wf-active"';
 }, 20 );
 
 /**
