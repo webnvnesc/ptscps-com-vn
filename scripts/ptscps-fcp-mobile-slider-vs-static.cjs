@@ -58,7 +58,7 @@ function transform(html, mode){
  }
  return {html:$.html(),image:image.href,chain,removed:{scripts,styles,inline}};
 }
-async function once(browser,mode,cycle){
+async function once(browser,mode,cycle,baseHtml){
  const ctx=await browser.newContext({viewport:{width:412,height:850},isMobile:true,hasTouch:true,
   deviceScaleFactor:1,serviceWorkers:'block',
   userAgent:'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36'});
@@ -94,10 +94,8 @@ async function once(browser,mode,cycle){
  let patch=null;
  await page.route(BASE,async route=>{
   if(!route.request().isNavigationRequest())return route.continue();
-  const r=await route.fetch({timeout:45000});
-  const body=await r.text();
-  patch=transform(body,mode);
-  await route.fulfill({response:r,body:patch.html,contentType:'text/html; charset=utf-8'});
+   patch=transform(baseHtml,mode);
+  await route.fulfill({status:200,headers:{'cache-control':'no-store', 'content-type':'text/html; charset=utf-8'},body:patch.html});
  });
  const row={mode,cycle};
  try{
@@ -140,9 +138,20 @@ async function main(){
  const b=await chromium.launch({headless:true,args:['--no-sandbox','--disable-extensions']});
  const rows=[];
  try{
+  // Hold HTML constant for both arms to eliminate volatile origin HTML TTFB.
+  // CSS and JS still use real uncached origin network over HTTP/2.
+  const prep=await b.newContext();
+  let baseHtml;
+  try{
+   const res=await prep.request.get(BASE,{timeout:35000});
+   if(res.status()!==200)throw Error('Could not acquire control HTML');
+   baseHtml=await res.text();
+  }finally{await prep.close()}
+  const smoke=transform(baseHtml,'static');
+  if(smoke.removed.scripts<1 || smoke.removed.styles<1)throw Error('Static arm failed to remove SR7 assets');
   for(let i=0;i<PAIRS;i++){
    const order=i%2?['static','slider']:['slider','static'];
-   for(const mode of order)rows.push(await once(b,mode,i));
+   for(const mode of order)rows.push(await once(b,mode,i,baseHtml));
   }
  }finally{await b.close();}
  const paired=Array.from({length:PAIRS},(_,i)=>{
@@ -164,6 +173,7 @@ async function main(){
   medLongtaskProxyDelta:med(valid.map(x=>x.blockingProxyDelta)),
   countStaticFasterFCP:valid.filter(x=>x.fcpDelta<-100).length,
   countStaticSlowerFCP:valid.filter(x=>x.fcpDelta>100).length,
+  note:'Both arms served the identical fetched HTML via browser routing; external CSS/JS/image timing still subject to geographic/transport variance. No live site changes.',
   paired,invalid:rows.filter(x=>!x.valid).map(x=>({mode:x.mode,cycle:x.cycle,
    error:x.error,hero:x.hero,errors:x.errors})),assetChanges:rows.find(x=>x.mode==='static')?.patch?.removed};
  fs.writeFileSync(OUT+'/summary.json',JSON.stringify(result,null,2));
