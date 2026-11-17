@@ -1,0 +1,75 @@
+name: PTSCPS Elementor icons and frontend CSS 2-to-1 production canary
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-eif-css-production.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 42
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      WP_ADMIN_USERNAME: ${{ secrets.WP_ADMIN_USERNAME }}
+      WP_ADMIN_PASSWORD: ${{ secrets.WP_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate only owned changes
+        run: |
+          php -l deploy/ptscps-elementor-icons-frontend-bundle.php
+          python3 -m py_compile scripts/ptscps-eif-stage-and-deploy.py
+          node --check scripts/ptscps-eif-production-qa.cjs
+      - name: Install Playwright for cache and QA
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Build and upload guarded 2-to-1 CSS over encrypted FTPS
+        run: |
+          python3 -u scripts/ptscps-eif-stage-and-deploy.py deploy > eif-deploy.log 2>&1 || { tail -n 28 eif-deploy.log; exit 1; }
+          grep -E '^EIF_(BUILD|PRODUCTION_INSTALLED)' eif-deploy.log | cut -c1-3700
+      - name: Purge WordPress HTML, retry transient admin timeouts
+        run: |
+          success=0
+          for i in 1 2 3; do
+            if node scripts/ptscps-wpsc-clear-html-cache.cjs > eif-purge.log 2>&1; then success=1; break; fi
+            tail -n 4 eif-purge.log
+            sleep 4
+          done
+          test "${success}" -eq 1
+          grep '^WPSC_PURGE_CLICKED' eif-purge.log
+      - name: Verify 6 page types x 2 devices and fonts/icons/layout
+        run: |
+          node scripts/ptscps-eif-production-qa.cjs > eif-qa.log 2>&1 || { tail -n 38 eif-qa.log; exit 1; }
+          grep '^EIF_QA_SUMMARY' eif-qa.log
+      - name: Roll back only new CSS plugin and files on any failure
+        if: failure()
+        run: python3 -u scripts/ptscps-eif-stage-and-deploy.py rollback
+      - name: Flush HTML after rollback
+        if: failure()
+        run: node scripts/ptscps-wpsc-clear-html-cache.cjs || true
+      - name: Archive state, CSS build, HTML and responsive QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-eif-css-merge-checkpoint
+          path: |
+            ptscps-eif-built.css
+            ptscps-eif-built.json
+            ptscps-eif-deploy-state.json
+            ptscps-eif-plugin-before.php
+            ptscps-eif-production-qa.json
+            eif-deploy.log
+            eif-purge.log
+            eif-qa.log
+          retention-days: 30
+          if-no-files-found: ignore
