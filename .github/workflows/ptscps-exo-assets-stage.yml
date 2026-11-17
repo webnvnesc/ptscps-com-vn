@@ -22,3 +22,5 @@ jobs:
           python3 -m py_compile scripts/ptscps-exo-local-font-upload.py
       - name: Upload inert CSS and Exo WOFF2 assets (not activated)
         run: python3 -u scripts/ptscps-exo-local-font-upload.py
+
+# Retry staging with shared variable WOFF2 URLs accepted.
