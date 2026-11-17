@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT="https://ptscps.com.vn/"
 OUT=Path("ptscps-css-encoding-audit.json")
 IDS={"ptscps-jannah-core6-css","ptscps-elementor-home-widgets-css",
-     "elementor-icons-css","elementor-frontend-css"}
+     "ptscps-elementor-icons-frontend-css"}
 class Links(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -48,8 +48,8 @@ def view(row):
 html=fetch(ROOT)
 links=Links()
 links.feed(html["body"].decode("utf-8","replace"))
-if len(links.matches)!=4:
-    raise RuntimeError("Expected four current CSS link ids in homepage, got "+repr(links.matches))
+if len(links.matches)!=3:
+    raise RuntimeError("Expected three current CSS bundle ids in homepage, got "+repr(links.matches))
 results=[]
 for key,url in links.matches.items():
     plain=fetch(url,"identity")
