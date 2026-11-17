@@ -1,0 +1,33 @@
+name: PTSCPS HTTP1 vs HTTP2 critical assets read-only timing
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-transport-protocol-pairs.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    env:
+      TRANSPORT_PAIRS: '10'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate curl HTTP/2 and script
+        run: |
+          curl --version | head -n 2
+          python3 -m py_compile scripts/ptscps-transport-protocol-pairs.py
+      - name: Run HTTP1 and HTTP2 alternating pairs without website changes
+        run: |
+          python3 -u scripts/ptscps-transport-protocol-pairs.py > protocol-pairs.log 2>&1 || { tail -n 40 protocol-pairs.log; exit 1; }
+          grep '^TRANSPORT_SUMMARY\|^TRANSPORT_PAIRS' protocol-pairs.log | cut -c1-5000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-protocol-asset-timings
+          path: |
+            protocol-pairs.log
+            ptscps-h1-vs-h2/
+          retention-days: 12
+          if-no-files-found: ignore
