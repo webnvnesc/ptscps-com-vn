@@ -140,3 +140,5 @@ jobs:
           path: cls-results/
           retention-days: 7
           if-no-files-found: warn
+
+# Read-only repeated attribution after post-SVG Lighthouse CLS shift, 2026-11-17.
