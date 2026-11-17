@@ -1,0 +1,42 @@
+name: PTSCPS SR7 LCP CSS vs JS exact timing (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-lcp-gate-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mobile, desktop]
+    env:
+      SR7_GATE_DEVICE: ${{ matrix.device }}
+      SR7_GATE_LOOPS: '3'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chrome and PNG analysis
+        run: |
+          npm install --no-save --no-audit --no-fund playwright pngjs
+          npx playwright install --with-deps chromium
+      - name: Audit actual first-banner download vs CSS vs LCP vs JS readiness
+        run: |
+          node --check scripts/ptscps-sr7-lcp-gate-audit.cjs
+          node scripts/ptscps-sr7-lcp-gate-audit.cjs > sr7-lcp-gate.log 2>&1 || { tail -n 28 sr7-lcp-gate.log; exit 1; }
+          grep '^SR7_LCP_GATE_SUMMARY' sr7-lcp-gate.log | cut -c1-20000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-sr7-lcp-gate-${{ matrix.device }}
+          path: |
+            sr7-lcp-gate-${{ matrix.device }}/
+            sr7-lcp-gate.log
+          retention-days: 14
+          if-no-files-found: ignore
