@@ -1,0 +1,43 @@
+name: PTSCPS WebP postdeploy 5x Lighthouse desktop mobile (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-webp-postdeploy-lighthouse.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lighthouse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mobile, desktop]
+    env:
+      PTSCPS_LH_DEVICE: ${{ matrix.device }}
+      PTSCPS_LH_COUNT: '5'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Lighthouse and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund lighthouse@13.5.0 playwright
+          npx playwright install --with-deps chromium
+      - name: Validate Lighthouse repeat script
+        run: node --check scripts/ptscps-lighthouse-repeat-10.cjs
+      - name: Measure production WebP with unmodified Lighthouse
+        run: |
+          node scripts/ptscps-lighthouse-repeat-10.cjs > ptscps-webp-lh-5.log 2>&1 || { tail -n 25 ptscps-webp-lh-5.log; exit 1; }
+          grep '^LH_REPEAT_SUMMARY' ptscps-webp-lh-5.log | cut -c1-15000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-webp-lighthouse-5-${{ matrix.device }}
+          path: |
+            ptscps-repeat-lighthouse-${{ matrix.device }}/
+            ptscps-webp-lh-5.log
+          retention-days: 14
+          if-no-files-found: ignore
