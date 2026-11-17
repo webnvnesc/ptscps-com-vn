@@ -70,3 +70,5 @@ jobs:
           if-no-files-found: ignore
 
 # Retry: remove only standalone leading UTF-8 CSS @charset directives before concatenation.
+
+# Retry guarded source build: strip UTF-8 @charset declarations regardless of license banner position.
