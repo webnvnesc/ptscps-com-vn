@@ -44,3 +44,22 @@ Production-safe next owner action: ask hosting operations to correlate precise U
 Checked available FTPS credentials without downloading or displaying any log content. Workflow [#44019643453](https://github.com/webnvnesc/ptscps-com-vn/actions/runs/44019643453) completed successfully; the refined domain-prefixed filename scan [#44019768490](https://github.com/webnvnesc/ptscps-com-vn/actions/runs/44019768490) also completed successfully. `/domains/ptscps.com.vn/logs` is listable, but neither canonical nor name-contains-error Apache error logs nor similarly named access logs were found in the sampled directories; no Apache virtual-host configuration files were available. This establishes a practical access limitation, not a claim that the server has no logs. Files were not downloaded; visitor IPs, raw requests and credentials were not exposed.
 
 **Open blocker:** Diagnosing or fixing intermittent Apache HTTP/2 first-byte stalls needs hosting-level log and worker/transport visibility unavailable through the current FTPS credentials. Ask host operations for aggregate per-request request-time, Apache/mod_http2 stream resets, connection-worker saturation and resource-pressure metrics around **2026-11-17 04:45–04:47 UTC**, then rerun the existing browser tests after any isolated hosting-side repair. Do not disable HTTP/2 globally on the basis of a single GitHub runner's curl medians. The A/Bs have already rejected changing Jannah CSS loading and HTTP/2 protocol as speculative remedies.
+
+## Independent temporary-PHP versus static CSS probe (2026-11-17)
+
+User's screenshots show a DirectAdmin panel with disk 4.24 GB / Unlimited, 9.94 GB bandwidth / Unlimited, 40,309 inodes / Unlimited and **PHP 7.4**. These figures do **not** show CPU/RAM/I/O or Apache worker use and cannot establish saturation.
+
+To eliminate WordPress computation from this specific test, workflow [#44022516728](https://github.com/webnvnesc/ptscps-com-vn/actions/runs/44022516728) deployed a randomly named, standalone PHP diagnostic to the web root via encrypted FTPS, checksum-verified the file, made six alternate independent HTTP/1.1 and HTTP/2 request pairs comparing that PHP endpoint with the existing Jannah CSS, and **successfully removed the temporary file** (explicit `PROBE_CLEANUP SUCCESS`). It did not load WordPress or access configuration/database; the response was JSON with a short measured PHP execution time.
+
+| Resource | Protocol | Successful | Median TTFB | Maximum TTFB | Median post-connect setup wait |
+|---|---|---:|---:|---:|---:|
+| Jannah CSS | H1 | 6/6 | 603ms | 1814ms | 189ms |
+| Jannah CSS | H2 | 6/6 | 1199ms | 1872ms | 366ms |
+| Standalone PHP | H1 | 6/6 | 1038ms | 1682ms | 184ms |
+| Standalone PHP | H2 | 6/6 | 573ms | 3045ms | 184ms |
+
+Standalone PHP function execution rounded to 0ms in the returned JSON, while the end-to-end response sometimes took seconds. *Inference:* long end-to-end delays cannot be explained solely by WordPress business logic; connection setup/transport and hosting-side queueing remain plausible. TTFB includes DNS/TCP/TLS and cannot be ascribed solely to PHP or Apache worker activity; nor does this prove host CPU overload. The two protocol medians vary with small samples and do not override full-page Chrome results (do not disable HTTP/2 based on this).
+
+**Operational state:** the diagnostic endpoint was removed in the same successful workflow. No lasting production change. PHP 7.4 is EOL and warrants a separately staged compatibility upgrade, not an unreviewed production switch while diagnosing FCP.
+
+Code: `scripts/ptscps-temporary-origin-php-probe.py`; workflow: `.github/workflows/ptscps-temporary-origin-php-probe.yml`.
