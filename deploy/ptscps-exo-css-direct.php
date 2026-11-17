@@ -14,7 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 function ptscps_exo_direct_active() {
     return ! is_admin() && ! is_feed() && ! is_preview()
         && ! ( function_exists( 'is_customize_preview' ) && is_customize_preview() )
-        && ! isset( $_GET['elementor-preview'], $_GET['customize_changeset_uuid'] );
+        && ! isset( $_GET['elementor-preview'] )
+        && ! isset( $_GET['customize_changeset_uuid'] );
 }
 add_action( 'wp_enqueue_scripts', static function () {
     if ( ! ptscps_exo_direct_active() ) {
