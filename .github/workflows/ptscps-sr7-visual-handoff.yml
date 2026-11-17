@@ -1,0 +1,42 @@
+name: PTSCPS read-only SR7 visual completion around native ready
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-sr7-visual-handoff.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  trace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mobile, desktop]
+    env:
+      HANDOFF_DEVICE: ${{ matrix.device }}
+      HANDOFF_CYCLES: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and JPEG decoder
+        run: |
+          npm install --no-save --no-audit --no-fund playwright jpeg-js
+          npx playwright install --with-deps chromium
+      - name: Observe first banner pixels at LCP, before and after SR7 ready
+        run: |
+          node --check scripts/ptscps-sr7-visual-handoff.cjs
+          node scripts/ptscps-sr7-visual-handoff.cjs > sr7-handoff.log 2>&1 || { tail -n 20 sr7-handoff.log; exit 1; }
+          grep '^SR7_HANDOFF_SUMMARY' sr7-handoff.log | cut -c1-26000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-sr7-visual-handoff-${{ matrix.device }}
+          path: |
+            handoff-pixels-${{ matrix.device }}/
+            sr7-handoff.log
+          retention-days: 14
+          if-no-files-found: ignore
