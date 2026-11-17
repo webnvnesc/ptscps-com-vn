@@ -1,0 +1,31 @@
+name: PTSCPS WebP three SR7 banner size and hosting audit
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-webp-banner-audit.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Pillow
+        run: python3 -m pip install --disable-pip-version-check pillow
+      - name: Check banner WebP size and uploads directory policy, read only
+        run: |
+          python3 -m py_compile scripts/ptscps-webp-banner-audit.py
+          python3 -u scripts/ptscps-webp-banner-audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-webp-readonly-audit
+          path: ptscps-webp-pilot-audit/
+          retention-days: 10
+          if-no-files-found: ignore
