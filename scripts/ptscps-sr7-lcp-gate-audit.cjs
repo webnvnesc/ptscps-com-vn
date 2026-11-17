@@ -153,7 +153,10 @@ async function run(browser,iteration,jsEnabled){
    };
    if(!jsEnabled){
      // Snapshot with JS disabled: confirm SR7's first image can appear before native init.
-     const png=await page.screenshot({type:'png',timeout:15000});
+     // CDP screenshot does not await document.fonts.ready, unlike Playwright's screenshot.
+     // This matters for the JavaScript-disabled control on slower font downloads.
+     const shot=await cdp.send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false,fromSurface:true});
+     const png=Buffer.from(shot.data,'base64');
      fs.writeFileSync(OUTPUT+'/no-js-'+iteration+'.png',png);
      let rect=null;
      try{rect=await page.locator('sr7-module#SR7_1_1').boundingBox({timeout:3000});}catch{}
@@ -195,9 +198,8 @@ async function run(browser,iteration,jsEnabled){
    },
    bannerIsLcp:valid.filter(x=>x.summary.lcpCandidateMatchesBanner).length,
    details:valid.map(x=>x.summary),
-   noJs:{image:x=>(x),pixels:nojs?.summary?.noJsPixels??null,heroRect:nojs?.summary?.noJsHeroRect??null}
+   noJs:{pixels:nojs?.summary?.noJsPixels??null,heroRect:nojs?.summary?.noJsHeroRect??null}
  };
- delete summary.noJs.image;
  fs.writeFileSync(OUTPUT+'/summary.json',JSON.stringify(summary,null,2));
  console.log('SR7_LCP_GATE_SUMMARY '+JSON.stringify(summary).slice(0,20000));
  if(valid.length!==LOOPS||!nojs?.ok)process.exitCode=1;
