@@ -30,3 +30,10 @@ Run `.github/workflows/ptscps-browser-network-lab-deploy.yml`, which installs th
 3. Once complete, optionally press **Đo trang chủ thật (1 lượt)**.
 4. Click **Sao chép báo cáo JSON** and paste it into the PTSCPS project conversation, or download the JSON file.
 5. Compare local solo/group/home results with GitHub samples before deciding on optimization.
+
+## Production acceptance (2026-11-17)
+
+- GitHub Actions workflow [#44028730974](https://github.com/webnvnesc/ptscps-com-vn/actions/runs/44028730974): **SUCCESS**, including production HTML HTTP 200, `noindex`, 6 cycles × solo/group for 3 key resources (36 valid sampled timings, no page errors), JSON reporting, and at least 2/3 usable Jannah/Elementor/jQuery timing entries in the live-homepage iframe check. `NETLAB_ALREADY_CURRENT` confirms production file hash matches the approved repo file.
+- GitHub-hosted Chromium median first-byte delays: Jannah solo ~223ms / grouped ~223ms; spacer solo ~216ms / grouped ~217ms; jQuery solo ~222ms / grouped ~224ms. This second CI sample does **not** show meaningful median concurrent overhead; the earlier full-page Chrome experiment did contain sporadic very large HTTP/2 outliers. This reinforces that latency is variable and **runner-only measurements cannot establish Vietnam end-user latency**.
+- GitHub workflow #44028572044 additionally passed six rounds and emitted all 36 samples with no errors. The earlier #44028309388 failed due solely to an incorrectly configured Playwright wait timeout (default 30 seconds); this was corrected and successfully verified on later runs. No website regression was found.
+- End-user browser measurement is still needed: user should open the diagnostic on a Vietnam connection and paste/download the JSON result. Do not claim a measured Vietnam result before receiving that report.
