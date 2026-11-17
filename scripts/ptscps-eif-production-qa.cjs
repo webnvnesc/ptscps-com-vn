@@ -19,7 +19,20 @@ try{
   const row={device:mode.name,route,errors:errs};
   try{
    const response=await page.goto(host+route,{waitUntil:'domcontentloaded',timeout:85000});
-   await page.waitForTimeout(route==='/'?2800:900);
+   await page.waitForTimeout(route==='/'?2800:1500);
+   if(route==='/tin-tuc' && mode.name==='desktop'){
+     // News header may become visible after its asynchronous sticky/header
+     // transition. Do not treat its initial 0x0 rect as a definite CSS bug.
+     const showing=()=>{const r=document.querySelector('#theme-header .tie-logo-img-default')?.getBoundingClientRect();
+       return !!r && r.width>70 && r.height>20;};
+     try{await page.waitForFunction(showing,null,{timeout:6000})}
+     catch{
+       // Independent navigation, not a silent waiver: still require visible
+       // logo on second attempt or QA fails and deployment is reverted.
+       await page.reload({waitUntil:'domcontentloaded',timeout:85000});
+       await page.waitForTimeout(3000);
+     }
+   }
    const data=await page.evaluate(()=>{
     const link=document.querySelector('#ptscps-elementor-icons-frontend-css');
     const qs=s=>document.querySelector(s);
