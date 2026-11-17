@@ -1,0 +1,42 @@
+name: PTSCPS Lighthouse filmstrip regional late-paint attribution (read-only)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-si-filmstrip-regions.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mobile, desktop]
+    env:
+      PTSCPS_FILM_DEVICE: ${{ matrix.device }}
+      PTSCPS_FILM_RUNS: "3"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Lighthouse and screenshot decoder
+        run: |
+          npm install --no-save --no-audit --no-fund lighthouse@13.5.0 playwright pngjs jpeg-js
+          npx playwright install --with-deps chromium
+      - name: Compare real Lighthouse filmstrip visual progress by screen region
+        run: |
+          node --check scripts/ptscps-si-filmstrip-regions.cjs
+          node scripts/ptscps-si-filmstrip-regions.cjs > si-filmstrip-regions.log 2>&1 || { tail -n 25 si-filmstrip-regions.log; exit 1; }
+          grep '^SI_REGION_SUMMARY' si-filmstrip-regions.log | cut -c1-11000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-si-filmstrip-regions-${{ matrix.device }}
+          path: |
+            si-filmstrip-regions-${{ matrix.device }}/
+            si-filmstrip-regions.log
+          retention-days: 14
+          if-no-files-found: ignore
