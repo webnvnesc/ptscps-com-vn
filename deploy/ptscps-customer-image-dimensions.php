@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS Elementor Customer Carousel Image Dimensions
  * Description: Add native width/height to existing customer Swiper images from safe local upload metadata.
- * Version: 1.0.0
+ * Version: 1.0.1
  *
  * Scope: homepage Elementor image-carousel widget ed1c7da only. Does not edit
  * widget data, image sources, CSS, carousel JS, image lazy-load or srcset.
@@ -58,13 +58,10 @@ function ptscps_customer_image_size_from_local_url( $src ) {
     $sizes[ $src ] = array( (int) $size[0], (int) $size[1] );
     return $sizes[ $src ];
 }
-add_filter( 'elementor/widget/render_content', static function ( $html, $widget ) {
+function ptscps_customer_dimensions_transform_markup( $html ) {
     if ( ! ptscps_customer_dimensions_allowed() || ! is_string( $html )
-        || false === strpos( $html, 'swiper-slide-image' ) || ! is_object( $widget )
-        || ! method_exists( $widget, 'get_name' )
-        || 'image-carousel' !== $widget->get_name()
-        || ! method_exists( $widget, 'get_data' )
-        || 'ed1c7da' !== (string) $widget->get_data( 'id' ) ) {
+        || false === strpos( $html, 'swiper-slide-image' )
+        || false === strpos( $html, 'elementor-element-ed1c7da' ) ) {
         return $html;
     }
     return preg_replace_callback( '~<img\b[^>]*>~i', static function ( $match ) {
@@ -86,4 +83,10 @@ add_filter( 'elementor/widget/render_content', static function ( $html, $widget 
             1
         );
     }, $html );
-}, 25, 2 );
+}
+// Process fully-rendered Elementor page HTML because this installed widget's
+// markup is not passed through the normal widget render_content filter on
+// the public homepage. Scope to this actual carousel and only existing
+// swiper-slide-image <img> tags; do not alter Elementor editor output.
+add_filter( 'elementor/frontend/the_content', 'ptscps_customer_dimensions_transform_markup', PHP_INT_MAX );
+add_filter( 'the_content', 'ptscps_customer_dimensions_transform_markup', PHP_INT_MAX );
