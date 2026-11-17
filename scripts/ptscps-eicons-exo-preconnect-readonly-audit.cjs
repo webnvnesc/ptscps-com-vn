@@ -200,7 +200,13 @@ async function auditPage(browser,mode,path){
     usage:x.data?.renderedFontUsage,domEicons:x.data?.eiconClasses,
     iconRequests:x.requests?.filter(y=>/eicons|tielabs/.test(y.url)),
     iconFonts:x.data?.iconFaceStatus,
-    arrowCount:x.data?.otherControlNodes?.length
+    arrowCount:x.data?.otherControlNodes?.length,
+    arrowElements:x.path==='/'?x.data?.otherControlNodes?.slice(0,9):undefined,
+    eiconNodes:x.path==='/'?x.data?.eiconNodes?.slice(0,6):undefined,
+    fontNodes:x.path==='/'?x.data?.visibleFontNodes?.slice(0,9):undefined,
+    exoStyles:x.path==='/'?x.css?.filter(y=>/exo-direct/.test(y.url)).map(y=>({url:y.url,
+      faces:y.faces?.slice(0,20),bytes:y.bytes,display:y.fontDisplayDeclarations})):undefined,
+    googleRequests:x.requests?.filter(y=>/googleapis|gstatic/.test(y.url))
   }))};
  fs.writeFileSync(OUT+'/summary.json',JSON.stringify(summary,null,2));
  console.log('FONT_HEAD_AUDIT_SUMMARY '+JSON.stringify(summary).slice(0,18000));
