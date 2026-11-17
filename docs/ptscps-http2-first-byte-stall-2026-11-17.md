@@ -38,3 +38,9 @@ Production-safe next owner action: ask hosting operations to correlate precise U
 - Browser A/B script: [scripts/ptscps-browser-protocol-ab.cjs](../scripts/ptscps-browser-protocol-ab.cjs)
 - Workflow: [.github/workflows/ptscps-browser-protocol-ab.yml](../.github/workflows/ptscps-browser-protocol-ab.yml)
 - Prior critical CSS decision: [ptscps-critical-css-gate-2026-11-17.md](ptscps-critical-css-gate-2026-11-17.md)
+
+## Read-only hosting log capability, 2026-11-17
+
+Checked available FTPS credentials without downloading or displaying any log content. Workflow [#44019643453](https://github.com/webnvnesc/ptscps-com-vn/actions/runs/44019643453) completed successfully; the refined domain-prefixed filename scan [#44019768490](https://github.com/webnvnesc/ptscps-com-vn/actions/runs/44019768490) also completed successfully. `/domains/ptscps.com.vn/logs` is listable, but neither canonical nor name-contains-error Apache error logs nor similarly named access logs were found in the sampled directories; no Apache virtual-host configuration files were available. This establishes a practical access limitation, not a claim that the server has no logs. Files were not downloaded; visitor IPs, raw requests and credentials were not exposed.
+
+**Open blocker:** Diagnosing or fixing intermittent Apache HTTP/2 first-byte stalls needs hosting-level log and worker/transport visibility unavailable through the current FTPS credentials. Ask host operations for aggregate per-request request-time, Apache/mod_http2 stream resets, connection-worker saturation and resource-pressure metrics around **2026-11-17 04:45–04:47 UTC**, then rerun the existing browser tests after any isolated hosting-side repair. Do not disable HTTP/2 globally on the basis of a single GitHub runner's curl medians. The A/Bs have already rejected changing Jannah CSS loading and HTTP/2 protocol as speculative remedies.
