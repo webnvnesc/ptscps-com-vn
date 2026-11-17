@@ -1,0 +1,43 @@
+name: PTSCPS hard remove two sliders Lighthouse SI A B read-only
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-si-hard-remove-two-sliders.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 105
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mobile, desktop]
+    env:
+      PTSCPS_AB_DEVICE: ${{ matrix.device }}
+      PTSCPS_HARD_CYCLES: '5'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium, Lighthouse, and HTML parser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright lighthouse@13.5.0 cheerio
+          npx playwright install --with-deps chromium
+      - name: Browser-only hard removal A B test with real Lighthouse
+        run: |
+          node --check scripts/ptscps-si-two-sliders-hard-remove-ab.cjs
+          node scripts/ptscps-si-two-sliders-hard-remove-ab.cjs > hard-slider-ab.log 2>&1 || { tail -n 32 hard-slider-ab.log; exit 1; }
+          grep '^SLIDERS_AB_SUMMARY' hard-slider-ab.log | cut -c1-28000
+      - name: Store Lighthouse data and precise resource audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-hard-remove-two-sliders-${{ matrix.device }}
+          path: |
+            ptscps-hard-slider-ab-${{ matrix.device }}/
+            hard-slider-ab.log
+          retention-days: 21
+          if-no-files-found: ignore
