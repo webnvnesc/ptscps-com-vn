@@ -34,7 +34,7 @@ const fs=require('node:fs');
    try{
     const response=await page.goto('https://ptscps.com.vn'+c.path,{waitUntil:'domcontentloaded',timeout:80000});
     if(c.path!=='/'){
-     const unexpected=await page.locator('[data-ptscps-poster]').count();
+     const unexpected=await page.locator('[data-ptscps-poster],link[data-ptscps-sr7-first-preload]').count();
      const ok=response.status()===200&&!unexpected&&!errors.length;
      Object.assign(record,{http:response.status(),unexpected,errors,passed:ok});
      list.push(record);console.log('POSTER_LIVE_QA '+JSON.stringify(record));
@@ -44,7 +44,9 @@ const fs=require('node:fs');
     const pageHtml=await response.text();
     const markup=pageHtml.match(/<sr7-module\b[^>]*\bid="SR7_1_1"[^>]*>[\s\S]*?<sr7-slide\b[^>]*>[\s\S]*?<\/sr7-slide>/i)?.[0]||'';
     const markupSrc=markup.match(/<noscript>\s*<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i)?.[1]||null;
+    const preloadMarkup=pageHtml.match(/<link\b[^>]*data-ptscps-sr7-first-preload=["']1["'][^>]*>/ig)||[];
     const result=await page.evaluate(()=>{
+      const preload=[...document.querySelectorAll('link[data-ptscps-sr7-first-preload]')];
       const m=document.querySelector('sr7-module#SR7_1_1');
       if(!m)return {error:'SR7 module absent'};
       const first=m.querySelector('sr7-slide'),img=first?.querySelector('sr7-bg noscript img');
@@ -53,6 +55,7 @@ const fs=require('node:fs');
       const style=getComputedStyle(m);
       const visible=first?getComputedStyle(first).visibility:null;
       return {moduleId:m.id,src,poster:m.getAttribute('data-ptscps-poster'),
+       preload:preload.map(e=>({href:e.href,rel:e.rel,as:e.as,fetchPriority:e.fetchPriority||e.getAttribute('fetchpriority'),inHead:!!e.closest('head')})),
        bg:style.backgroundImage,rect:[r.x,r.y,r.width,r.height].map(Math.round),
        slide: first?.id,firstVisibility:visible,slideCount:m.querySelectorAll('sr7-slide').length,
        cls:(window.__ptscpsCLS||[]).reduce((s,e)=>s+e,0),scriptCount:[...document.querySelectorAll('script[src]')].filter(x=>/revslider|sr7|tptools/i.test(x.src)).length,
@@ -73,13 +76,16 @@ const fs=require('node:fs');
      pixel={total,nonwhite:Math.round(100*nonwhite/Math.max(1,total)),blue:Math.round(100*blue/Math.max(1,total))};
     }
     const matches=!!markupSrc&&markupSrc===result.poster;
+    const preloadMatches=preloadMarkup.length===1 && result.preload.length===1 &&
+      result.preload[0].href===markupSrc && result.preload[0].as==='image' &&
+      result.preload[0].fetchPriority==='high' && result.preload[0].inHead;
     const visibleBg=result.bg?.includes(markupSrc?.split('/').at(-1)||'#notfound');
     const geometry=result.rect&&result.rect[2]>(mobile?360:590)&&result.rect[3]>175&&result.rect[3]<350;
     const imgRequested=requests.some(x=>x.url===markupSrc&&x.status===200);
-    const complete=response.status()===200&&matches&&visibleBg&&geometry&&imgRequested&&
+    const complete=response.status()===200&&matches&&preloadMatches&&visibleBg&&geometry&&imgRequested&&
       result.slideCount>=3&&result.cacheMode===c.device&&errors.length===0&&
       result.cls<0.055&&(!pixel||pixel.blue>=27&&pixel.nonwhite>=33);
-    Object.assign(record,{http:response.status(),result,pixel,markupSrc,requests:requests.filter(x=>x.url===markupSrc),errors,passed:!!complete});
+    Object.assign(record,{http:response.status(),result,pixel,markupSrc,preloadMatches,preloadMarkupCount:preloadMarkup.length,requests:requests.filter(x=>x.url===markupSrc),errors,passed:!!complete});
    }catch(e){Object.assign(record,{passed:false,error:String(e.stack||e).slice(0,450),errors})}
    list.push(record);console.log('POSTER_LIVE_QA '+JSON.stringify(record).slice(0,9000));
    await ctx.close();
