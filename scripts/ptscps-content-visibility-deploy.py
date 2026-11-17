@@ -15,7 +15,7 @@ PATH=DIR+"/"+NAME
 DISABLED=PATH+".disabled"
 SOURCE=Path("deploy/ptscps-content-visibility-pilot.php").read_bytes()
 MARK=b"Plugin Name: PTSCPS Offscreen Content Visibility Pilot"
-if MARK not in SOURCE or b"Version: 1.0.0" not in SOURCE:
+if MARK not in SOURCE or b"Version: 1.0.1" not in SOURCE:
     raise RuntimeError("Unrecognized MU plugin source")
 
 host=os.environ["FTP_SERVER"]
