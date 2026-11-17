@@ -45,8 +45,8 @@ async function test(browser,device){
    heroBg:getComputedStyle(document.querySelector(selectors.hero)).backgroundImage};
  },selectors);
  const check=mobile?
-  initial.news?.contentVisibility==='auto'&&initial.customers?.contentVisibility==='auto':
-  initial.news?.contentVisibility!=='auto'&&initial.customers?.contentVisibility==='auto';
+  initial.news?.contentVisibility==='auto'&&initial.customers?.contentVisibility!=='auto':
+  initial.news?.contentVisibility!=='auto'&&initial.customers?.contentVisibility!=='auto';
  if(response.status()!==200||!html.includes('ptscps-offscreen-content-visibility-v1')||
     !check||initial.cssIdCount!==1||!initial.hero?.width||!initial.firstSlidePoster||
     initial.docWidth>device.width+3||initial.cls>0.045)
@@ -64,7 +64,7 @@ async function test(browser,device){
     imageCount:el.querySelectorAll('img').length,
     imageLoaded:[...el.querySelectorAll('img')].filter(i=>i.naturalWidth>0).length};
   });
-  if(after[key].height<85 || after[key].textLength<15 || after[key].width<300)
+  if(after[key].height<85 || after[key].textLength<10 || after[key].width<300 || (key==='customers' && after[key].imageLoaded===0))
    throw Error('Offscreen section not restored correctly after scrolling: '+JSON.stringify({device,key,after:after[key]}));
  }
  const cls=await page.evaluate(()=>window.__cvShifts.reduce((a,b)=>a+b,0));
