@@ -41,3 +41,5 @@ jobs:
             sliders-ab.log
           retention-days: 21
           if-no-files-found: ignore
+
+# Retry with Chrome CDP/Playwright HTML response interception (headless extensions unsupported).
