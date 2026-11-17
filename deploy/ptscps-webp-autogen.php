@@ -81,16 +81,36 @@ function ptscps_webp_generate_one( $raw ) {
     $output = $file . '.webp';
     // Always regenerate on a real WP upload/metadata/slider save event.
     // Comparing mtimes alone is unsafe for same-second filename overwrites.
-    $editor = wp_get_image_editor( $file );
-    if ( is_wp_error( $editor ) || ! method_exists( $editor, 'save' ) ) {
-        return false;
-    }
-    if ( method_exists( $editor, 'set_quality' ) ) {
-        $editor->set_quality( 82 );
-    }
     $tmp = $file . '.ptscps-' . wp_generate_password( 12, false, false ) . '.webp';
-    $result = $editor->save( $tmp, 'image/webp' );
-    if ( is_wp_error( $result ) || ! is_file( $tmp ) ) {
+    $converted = false;
+    $editor = wp_get_image_editor( $file );
+    if ( ! is_wp_error( $editor ) && method_exists( $editor, 'save' ) ) {
+        if ( method_exists( $editor, 'set_quality' ) ) {
+            $editor->set_quality( 82 );
+        }
+        $converted = ! is_wp_error( $editor->save( $tmp, 'image/webp' ) ) && is_file( $tmp );
+    }
+    // Some hosts expose Imagick for JPG but not WebP. Fall back to native GD
+    // when available; never touch the original image.
+    if ( ! $converted && function_exists( 'imagewebp' ) ) {
+        $image = false;
+        $mime = $dimensions['mime'] ?? '';
+        if ( 'image/jpeg' === $mime && function_exists( 'imagecreatefromjpeg' ) ) {
+            $image = @imagecreatefromjpeg( $file );
+        } elseif ( 'image/png' === $mime && function_exists( 'imagecreatefrompng' ) ) {
+            $image = @imagecreatefrompng( $file );
+            if ( $image ) {
+                imagepalettetotruecolor( $image );
+                imagealphablending( $image, false );
+                imagesavealpha( $image, true );
+            }
+        }
+        if ( $image ) {
+            $converted = @imagewebp( $image, $tmp, 82 ) && is_file( $tmp );
+            imagedestroy( $image );
+        }
+    }
+    if ( ! $converted ) {
         @unlink( $tmp );
         return false;
     }
