@@ -68,3 +68,5 @@ jobs:
 # Retry v1.0.1 with final Elementor content filter and server-markup QA.
 
 # Deploy v1.0.2 to catch slider saves through authenticated REST as well as admin-AJAX.
+
+# v1.0.3: dynamic head preload fetchpriority=high, must match actual first slide in QA.
