@@ -1,66 +1,16 @@
-name: PTSCPS SR7 WebP 3-banner reversible production pilot
+name: PTSCPS old fixed 3-banner WebP deploy (deprecated, read-only)
 on:
-  push:
-    branches: [main]
-    paths: [".github/workflows/ptscps-webp-banner-pilot.yml"]
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: ptscps-production-image-pilot
-  cancel-in-progress: false
 jobs:
-  prepare-enable-qa:
+  migration-notice:
     runs-on: ubuntu-24.04
-    timeout-minutes: 19
-    env:
-      FTP_SERVER: ${{ secrets.FTP_SERVER }}
-      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install Pillow
-        run: python3 -m pip install --disable-pip-version-check pillow
-      - name: Validate only pilot source and credentials
+      - name: Explain replacement workflow without changing production
         run: |
-          python3 -m py_compile scripts/ptscps-webp-banner-pilot.py scripts/ptscps-webp-banner-http-qa.py
-          node --check scripts/ptscps-webp-banner-live-qa.cjs
-          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
-      - name: Upload exactly 3 WebP copies without enabling rewrite
-        id: prepare
-        run: python3 -u scripts/ptscps-webp-banner-pilot.py prepare
-      - name: Check each staged WebP image is publicly reachable
-        id: direct
-        run: python3 -u scripts/ptscps-webp-banner-http-qa.py --direct
-      - name: Enable exact-three-JPEG conditional WebP rule on hosting
-        id: enable
-        run: python3 -u scripts/ptscps-webp-banner-pilot.py enable
-      - name: Verify WebP Accept, fallback JPEG, cache Vary and unchanged homepage
-        id: http
-        run: python3 -u scripts/ptscps-webp-banner-http-qa.py
-      - name: Install Chromium
-        run: |
-          npm install --no-save --no-audit --no-fund playwright
-          npx playwright install --with-deps chromium
-      - name: Check live slider and CLS on mobile and desktop
-        id: browser
-        run: |
-          node scripts/ptscps-webp-banner-live-qa.cjs > ptscps-webp-browser.log 2>&1 || { tail -n 30 ptscps-webp-browser.log; exit 1; }
-          grep '^WEBP_BROWSER_QA' ptscps-webp-browser.log | cut -c1-10000
-      - name: Automatically rollback exactly owned WebP files and rule on any failure
-        if: failure()
-        run: python3 -u scripts/ptscps-webp-banner-pilot.py rollback
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: ptscps-webp-banner-pilot-qa
-          path: |
-            ptscps-webp-banner-live-qa/
-            ptscps-webp-browser.log
-          retention-days: 14
-          if-no-files-found: ignore
-
-# Retry after fixing browser QA's local URL symbol collision; all HTTP negotiation checks passed.
+          echo "Fixed 3-banner WebP deploy is retired."
+          echo "Production now uses automatic WebP generation and generic uploads negotiation."
+          echo "Deploy/verify with ptscps-webp-autogen-deploy.yml."
+          echo "Rollback with ptscps-webp-autogen-rollback.yml."
+          echo "No production files have been changed by this legacy workflow."
