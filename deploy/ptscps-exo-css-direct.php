@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS Exo Font CSS Direct
  * Description: Load Exo stylesheet directly and remove Jannah's redundant WebFont Loader, retaining wf-active font selectors.
- * Version: 1.0.2
+ * Version: 1.0.3
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -30,23 +30,28 @@ add_action( 'wp_enqueue_scripts', static function () {
     );
 }, 1 );
 
-add_filter( 'language_attributes', static function ( $attributes ) {
-    if ( ! ptscps_exo_direct_active() ) {
-        return $attributes;
+add_filter( 'body_class', static function ( $classes ) {
+    if ( ptscps_exo_direct_active() && ! in_array( 'ptscps-exo-direct', $classes, true ) ) {
+        $classes[] = 'ptscps-exo-direct';
     }
-    // Jannah's selectors use .wf-active body; the class belongs on HTML.
-    if ( preg_match( '~\\bclass\\s*=~i', $attributes ) ) {
-        return preg_replace_callback(
-            '~\\bclass\\s*=\\s*(["\\\'])(.*?)\\1~i',
-            static function ( $m ) {
-                return 'class=' . $m[1] . trim( $m[2] . ' wf-active' ) . $m[1];
-            },
-            $attributes,
-            1
-        );
-    }
-    return $attributes . ' class="wf-active"';
+    return $classes;
 }, 20 );
+
+// Jannah's legacy CSS activates only after webfont.js adds html.wf-active.
+// Match those exact font destinations with our own body class instead of
+// relying on the WebFont Loader's JavaScript lifecycle.
+add_action( 'wp_head', static function () {
+    if ( ! ptscps_exo_direct_active() ) {
+        return;
+    }
+    echo '<style id="ptscps-exo-direct-theme-css">'
+       . 'body.ptscps-exo-direct{font-family:"Exo",sans-serif;}'
+       . 'body.ptscps-exo-direct .logo-text,body.ptscps-exo-direct h1,body.ptscps-exo-direct h2,'
+       . 'body.ptscps-exo-direct h3,body.ptscps-exo-direct h4,body.ptscps-exo-direct h5,'
+       . 'body.ptscps-exo-direct h6,body.ptscps-exo-direct .the-subtitle{font-family:"Exo",sans-serif;}'
+       . 'body.ptscps-exo-direct #main-nav .main-menu > ul > li > a{font-family:"Exo",sans-serif;}'
+       . '</style>' . "\n";
+}, 99 );
 
 /**
  * Jannah currently prints a specific Exo-only WebFontConfig bootstrap at
