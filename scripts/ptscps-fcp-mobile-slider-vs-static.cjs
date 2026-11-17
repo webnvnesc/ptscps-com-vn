@@ -104,6 +104,7 @@ async function once(browser,mode,cycle){
   const response=await page.goto(BASE,{waitUntil:'domcontentloaded',timeout:70000});
   await page.waitForTimeout(4800);
   const info=await page.evaluate(mode=>{
+   const round=x=>Number.isFinite(x)?Math.round(x):null;
    const nav=performance.getEntriesByType('navigation')[0];
    const fcp=performance.getEntriesByType('paint').find(x=>x.name==='first-contentful-paint');
    const el=document.querySelector(mode==='static'?'#ptscps-ab-static-hero':'sr7-module#SR7_1_1');
