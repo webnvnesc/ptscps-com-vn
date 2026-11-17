@@ -45,3 +45,5 @@ jobs:
 # Retry with Chrome CDP/Playwright HTML response interception (headless extensions unsupported).
 
 # CDP explicit port preflight; abort on first invalid result before 4-way comparison.
+
+# Async Lighthouse child avoids blocking Playwright's HTML route fulfillment.
