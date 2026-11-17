@@ -22,3 +22,5 @@ jobs:
           name: ptscps-sr7-poster-markup
           path: sr7-poster-markup.log
           retention-days: 14
+
+# Collect compact excerpts of first-slide markup for poster A/B.
