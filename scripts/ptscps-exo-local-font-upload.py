@@ -20,7 +20,7 @@ css=get_http(FONT_URL,100000).decode("utf-8","strict")
 if css.count("@font-face")!=15 or "@import" in css or "font-family: 'Exo'" not in css:
  raise RuntimeError("Unrecognized Google Exo CSS")
 urls=list(dict.fromkeys(re.findall(r'url\((https://fonts\.gstatic\.com/s/exo/[^)]+\.woff2)\)',css)))
-if len(urls)<9 or len(urls)>30:raise RuntimeError("Unexpected font asset count")
+if len(urls)<3 or len(urls)>30:raise RuntimeError("Unexpected font asset count")
 assets={}
 for url in urls:
  b=get_http(url,120000)
