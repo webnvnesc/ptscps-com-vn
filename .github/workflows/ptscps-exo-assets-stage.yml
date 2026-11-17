@@ -1,0 +1,24 @@
+name: PTSCPS stage Exo font CSS and WOFF2 locally with checksums
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-exo-assets-stage.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate font CSS plugin and staging tool
+        run: |
+          php -l deploy/ptscps-exo-css-direct.php
+          python3 -m py_compile scripts/ptscps-exo-local-font-upload.py
+      - name: Upload inert CSS and Exo WOFF2 assets (not activated)
+        run: python3 -u scripts/ptscps-exo-local-font-upload.py
