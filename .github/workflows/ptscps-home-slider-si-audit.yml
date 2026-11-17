@@ -42,3 +42,5 @@ jobs:
           if-no-files-found: ignore
 
 # Post-production dynamic CSS first-slide poster A/B verification (2026-11-17).
+
+# Independent PSI-style Lighthouse verification after first-slide dynamic high-priority preload v1.0.3.
