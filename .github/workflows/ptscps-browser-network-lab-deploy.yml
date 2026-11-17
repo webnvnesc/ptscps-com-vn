@@ -1,0 +1,50 @@
+name: PTSCPS deploy standalone browser network diagnostic and verify
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-browser-network-lab-deploy.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  deploy-and-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify diagnostic code and credentials
+        run: |
+          python3 -m py_compile scripts/ptscps-browser-network-lab-deploy.py
+          node --check scripts/ptscps-browser-network-lab-qa.cjs
+          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
+          grep -q 'PTSCPS_BROWSER_NETLAB_V1' deploy/ptscps-browser-network-lab.html
+      - name: Deploy the standalone noindex HTML file via encrypted FTPS
+        run: python3 -u scripts/ptscps-browser-network-lab-deploy.py
+      - name: Install isolated Chromium for real browser smoke test
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Verify production page and six rounds of solo vs concurrent testing
+        run: |
+          node scripts/ptscps-browser-network-lab-qa.cjs > ptscps-browser-netlab-qa.log 2>&1 || { tail -n 22 ptscps-browser-netlab-qa.log; exit 1; }
+          grep '^NETLAB_QA' ptscps-browser-netlab-qa.log | cut -c1-10000
+      - name: Archive QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-browser-network-lab-qa
+          path: |
+            ptscps-browser-netlab-qa.log
+            ptscps-browser-netlab-qa.json
+          retention-days: 15
+          if-no-files-found: ignore
