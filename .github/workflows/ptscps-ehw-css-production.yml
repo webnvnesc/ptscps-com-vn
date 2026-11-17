@@ -68,3 +68,5 @@ jobs:
             ehw-qa.log
           retention-days: 30
           if-no-files-found: ignore
+
+# Retry: remove only standalone leading UTF-8 CSS @charset directives before concatenation.
