@@ -1,0 +1,58 @@
+name: PTSCPS fix customer image width height (reversible)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-customer-dims-deploy.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-production-css
+  cancel-in-progress: false
+jobs:
+  fix-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify source and credentials
+        run: |
+          python3 -m py_compile scripts/ptscps-customer-dims-deploy.py scripts/ptscps-purge-home-featured.py
+          node --check scripts/ptscps-customer-dims-production-qa.cjs
+          grep -q 'Plugin Name: PTSCPS Elementor Customer Carousel Image Dimensions' deploy/ptscps-customer-image-dimensions.php
+          test -n "$FTP_SERVER" && test -n "$FTP_USERNAME" && test -n "$FTP_PASSWORD"
+          if command -v php >/dev/null; then php -l deploy/ptscps-customer-image-dimensions.php; fi
+      - name: Deploy owned MU plugin only
+        run: python3 -u scripts/ptscps-customer-dims-deploy.py
+      - name: Purge anonymous homepage HTML cache only
+        run: python3 -u scripts/ptscps-purge-home-featured.py
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Production HTML attributes and slider mobile desktop QA
+        id: qa
+        run: |
+          node scripts/ptscps-customer-dims-production-qa.cjs > ptscps-customer-dims-qa.log 2>&1 || { tail -n 35 ptscps-customer-dims-qa.log; exit 1; }
+          grep '^LOGO_DIMS_QA\|^LOGO_DIMS_NONHOME' ptscps-customer-dims-qa.log | cut -c1-6500
+      - name: Rollback only owned plugin on failed QA
+        if: failure() && steps.qa.outcome == 'failure'
+        run: |
+          python3 -u scripts/ptscps-customer-dims-deploy.py --rollback
+          python3 -u scripts/ptscps-purge-home-featured.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-customer-dims-production-qa
+          path: |
+            ptscps-customer-dims-qa.log
+            ptscps-customer-dims-qa/
+          retention-days: 14
+          if-no-files-found: ignore
