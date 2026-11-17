@@ -37,7 +37,7 @@ try{
      docWidth:document.documentElement.scrollWidth,width:innerWidth
     };
    });
-   const wantsBundle=route!='/tin-tuc';
+   const wantsBundle=true;
    row.http=response.status();row.data=data;row.cssResponses=responses;
    row.checks={
      document200:row.http===200,
