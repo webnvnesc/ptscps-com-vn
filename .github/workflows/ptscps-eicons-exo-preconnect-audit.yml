@@ -33,3 +33,5 @@ jobs:
             ptscps-icon-font-audit.log
           retention-days: 14
           if-no-files-found: ignore
+
+# QA rerun: include exact arrow glyphs, icon nodes and Exo face details in summary.
