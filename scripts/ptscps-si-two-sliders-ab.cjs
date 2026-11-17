@@ -9,7 +9,7 @@
  * visual exclusion ONLY: JS and asset downloads remain deliberately enabled.
  */
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {execFileSync,spawn}=require('node:child_process');
+const {spawn}=require('node:child_process');
 const {chromium}=require('playwright');
 const lighthouse=require.resolve('lighthouse/cli/index.js');
 const device=process.env.PTSCPS_AB_DEVICE==='desktop'?'desktop':'mobile';
@@ -109,8 +109,23 @@ async function run(mode,cycle,baseHtml){
    '--disable-storage-reset'
   ];
   if(device==='desktop')flags.push('--preset=desktop');
-  execFileSync(process.execPath,flags,{timeout:220000,stdio:'pipe',
-    env:{...process.env,CHROME_PATH:chromium.executablePath()}});
+  // IMPORTANT: never use execFileSync here. The Playwright route handler
+  // needs Node's event loop to fulfill Lighthouse's document navigation.
+  const cli=spawn(process.execPath,flags,{
+    env:{...process.env,CHROME_PATH:chromium.executablePath()},
+    stdio:['ignore','pipe','pipe']
+  });
+  let stderr='',stdout='',startError=null,timedOut=false;
+  const status=await new Promise(resolve=>{
+    const timeout=setTimeout(()=>{timedOut=true;cli.kill('SIGKILL')},160000);
+    cli.stdout.on('data',b=>{stdout=(stdout+String(b)).slice(-4500)});
+    cli.stderr.on('data',b=>{stderr=(stderr+String(b)).slice(-4500)});
+    cli.on('error',e=>{startError=String(e)});
+    cli.on('close',(code,signal)=>{clearTimeout(timeout);resolve({code,signal})});
+  });
+  if(timedOut||status.code!==0||startError)throw Error(
+    'Lighthouse child failed '+JSON.stringify({status,timedOut,startError,stderr:stderr.slice(-2400),stdout:stdout.slice(-500)})
+  );
   const j=JSON.parse(fs.readFileSync(output,'utf8'));
   const get=id=>j.audits?.[id]?.numericValue??null;
   Object.assign(row,{
