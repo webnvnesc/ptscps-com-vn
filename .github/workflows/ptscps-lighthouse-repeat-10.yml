@@ -1,4 +1,4 @@
-name: PTSCPS repeat Lighthouse 10 runs per device (production read-only)
+name: PTSCPS Lighthouse 10 x mobile and desktop (read-only)
 on:
   push:
     branches: [main]
@@ -42,3 +42,5 @@ jobs:
             lighthouse-repeat-10.log
           retention-days: 14
           if-no-files-found: ignore
+
+# Read-only post-font hints/carousel SVG sample, original settings preserved; checkpoint 2026-11-17.
