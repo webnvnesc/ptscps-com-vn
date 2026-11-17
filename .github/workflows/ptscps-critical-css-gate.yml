@@ -1,0 +1,42 @@
+name: PTSCPS critical CSS paired browser gate (no production changes)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-critical-css-gate.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [desktop, mobile]
+    env:
+      CSS_DEVICE: ${{ matrix.device }}
+      CSS_PAIRS: '5'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser and CSS parser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright postcss
+          npx playwright install --with-deps chromium
+      - name: Measure paired FCP LCP CLS and visual geometry in real Chrome
+        run: |
+          node --check scripts/ptscps-critical-css-gate.cjs
+          node scripts/ptscps-critical-css-gate.cjs > css-gate.log 2>&1 || { tail -n 45 css-gate.log; exit 1; }
+          grep '^CSS_GATE_PAIR\|^CSS_GATE_DECISION\|^CRITICAL_SIZE' css-gate.log | cut -c1-5000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ptscps-critical-css-gate-${{ matrix.device }}
+          path: |
+            critical-css-gate-${{ matrix.device }}/
+            css-gate.log
+          retention-days: 10
+          if-no-files-found: ignore
