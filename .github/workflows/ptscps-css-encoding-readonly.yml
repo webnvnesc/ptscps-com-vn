@@ -26,3 +26,5 @@ jobs:
             ptscps-css-encoding-audit.json
           retention-days: 14
           if-no-files-found: ignore
+
+# Recheck gzip after third Elementor icons/frontend bundle enters production.
