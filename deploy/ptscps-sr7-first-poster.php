@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTSCPS SR7 First Slide CSS Poster
  * Description: Render the first current Slider Revolution banner image as CSS immediately, with a no-JS fallback.
- * Version: 1.0.1
+ * Version: 1.0.2
  */
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -83,9 +83,9 @@ add_filter( 'elementor/frontend/the_content', static function ( $html ) {
  * The existing SR7 static-REST FastPath invalidator remains unchanged.
  */
 function ptscps_sr7_poster_invalidate_cache() {
-    if ( ! is_admin() ) {
-        return;
-    }
+    // Slider Revolution 7 may save via admin-ajax OR authenticated REST;
+    // is_admin() is false on REST writes. These actions run only on SR7
+    // mutations, so honor both routes when refreshing cached homepage HTML.
     static $scheduled = false;
     if ( $scheduled ) {
         return;
