@@ -32,3 +32,5 @@ jobs:
           retention-days: 10
 
 # Recheck correct documentElement wf-active selector to match Jannah font rules.
+
+# A/B local Exo CSS/WOFF2 after verified inert asset upload.
