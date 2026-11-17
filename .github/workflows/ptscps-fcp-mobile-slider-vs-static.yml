@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 22
     env:
-      FCP_PAIRS: '6'
+      FCP_PAIRS: '5'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,3 +36,5 @@ jobs:
             ptscps-fcp-mobile-static-ab/
           retention-days: 14
           if-no-files-found: ignore
+
+# Rerun with same-origin source HTML pinned identical for both A/B cases.
