@@ -1,0 +1,50 @@
+name: PTSCPS isolated vs concurrent CSS JS requests Chrome test (no deployment)
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/ptscps-asset-contention-browser.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ptscps-asset-contention-read-only
+  cancel-in-progress: false
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chrome
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Validate diagnostic
+        run: node --check scripts/ptscps-asset-contention-browser.cjs
+      - name: Isolated vs grouped vs whole site, native network (6 rounds)
+        env:
+          CONTENTION_NETWORK: native
+        run: |
+          node scripts/ptscps-asset-contention-browser.cjs > contention-native.log 2>&1 || { tail -n 35 contention-native.log; exit 1; }
+          grep '^CONTENTION_RESULT' contention-native.log | cut -c1-18000
+      - name: Isolated vs grouped vs whole site, constrained network (4 rounds)
+        env:
+          CONTENTION_NETWORK: constrained
+        run: |
+          node scripts/ptscps-asset-contention-browser.cjs > contention-constrained.log 2>&1 || { tail -n 35 contention-constrained.log; exit 1; }
+          grep '^CONTENTION_RESULT' contention-constrained.log | cut -c1-18000
+      - name: Archive raw per-request waterfalls and summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptscps-isolated-vs-grouped-network
+          path: |
+            contention-native.log
+            contention-constrained.log
+            ptscps-contention-native/
+            ptscps-contention-constrained/
+          retention-days: 14
+          if-no-files-found: ignore
