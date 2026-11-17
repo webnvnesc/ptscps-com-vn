@@ -79,11 +79,8 @@ function ptscps_webp_generate_one( $raw ) {
         return false;
     }
     $output = $file . '.webp';
-    // Regenerate after a same-name upload only when the source changed.
-    if ( is_file( $output ) && @filemtime( $output ) >= @filemtime( $file )
-        && @filesize( $output ) > 0 ) {
-        return true;
-    }
+    // Always regenerate on a real WP upload/metadata/slider save event.
+    // Comparing mtimes alone is unsafe for same-second filename overwrites.
     $editor = wp_get_image_editor( $file );
     if ( is_wp_error( $editor ) || ! method_exists( $editor, 'save' ) ) {
         return false;
