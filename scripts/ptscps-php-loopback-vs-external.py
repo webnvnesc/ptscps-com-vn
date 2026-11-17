@@ -70,6 +70,28 @@ function local_probe($url, $ip) {
     curl_close($h);
     return $result;
 }
+function tcp_probe() {
+    // Plain HTTP is only used *within* the same local host. A 301 still
+    // confirms that the webserver received the request. No external secrets.
+    $t = microtime(true);
+    $errno = 0; $error = '';
+    $sock = @stream_socket_client('tcp://127.0.0.1:80', $errno, $error, 0.8, STREAM_CLIENT_CONNECT);
+    if (!$sock) return array('ok'=>false, 'errno'=>(int)$errno,
+        'connect_ms'=>round((microtime(true)-$t)*1000,1));
+    $connected = microtime(true);
+    stream_set_timeout($sock, 0, 800000);
+    $request = "HEAD /wp-content/themes/jannah/assets/css/style.min.css HTTP/1.1\r\n" .
+       "Host: ptscps.com.vn\r\nConnection: close\r\n\r\n";
+    @fwrite($sock, $request);
+    $line = @fgets($sock, 256);
+    $meta = stream_get_meta_data($sock);
+    fclose($sock);
+    $code = preg_match('/^HTTP\/[\d.]+\s+(\d{3})/', (string)$line, $m) ? (int)$m[1] : null;
+    return array('ok'=>$code===200 || $code===301 || $code===302 || $code===403,
+       'status'=>$code, 'connect_ms'=>round(($connected-$t)*1000,1),
+       'first_line_ms'=>round((microtime(true)-$t)*1000,1),
+       'timed_out'=>!empty($meta['timed_out']));
+}
 $asset = 'https://ptscps.com.vn' . $relative;
 $local = local_probe($asset, '127.0.0.1');
 $public = local_probe($asset, null);
@@ -78,6 +100,7 @@ echo json_encode(array(
   'disk' => $disk,
   'loopback' => $local,
   'self_public' => $public,
+  'tcp80' => tcp_probe(),
   'runtime_ms' => round((microtime(true) - $start) * 1000, 1)
 ), JSON_UNESCAPED_SLASHES);
 """
@@ -117,7 +140,7 @@ def shell(url,cycle):
              "server_runtime_ms":data.get("runtime_ms"),
              "disk":data.get("disk"),
              "loopback":data.get("loopback"),
-             "self_public":data.get("self_public")}
+             "self_public":data.get("self_public"),"tcp80":data.get("tcp80")}
         return record
     except Exception as e:
         return {"cycle":cycle,"error":type(e).__name__}
@@ -163,6 +186,16 @@ def main():
                     value=value.get(part) if isinstance(value,dict) else None
                 samples.append(value)
             results[key]=summary(samples)
+        metrics.extend(["tcp80.connect_ms","tcp80.first_line_ms"])
+        for key in ["tcp80.connect_ms","tcp80.first_line_ms"]:
+            samples=[]
+            for row in rows:
+                item=row.get("tcp80") or {}
+                samples.append(item.get(key.split(".")[1]))
+            results[key]=summary(samples)
+        results["tcp80_ok"]=sum(1 for x in rows if (x.get("tcp80") or {}).get("ok"))
+        results["tcp80_statuses"]=sorted(set(str((x.get("tcp80") or {}).get("status")) for x in rows))
+        results["loopback_errors"]=sorted(set(str((x.get("loopback") or {}).get("error")) for x in rows))
         results["loopback_ok"]=sum(1 for x in rows if x.get("loopback",{}).get("ok"))
         results["self_public_ok"]=sum(1 for x in rows if x.get("self_public",{}).get("ok"))
         results["external_ok"]=sum(1 for x in rows if x.get("ok"))
